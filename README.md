@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QA Tracker Enterprise — Next.js & TypeScript Suite
 
-## Getting Started
+Enterprise Quality Assurance Management Platform featuring full **Role-Based Access Control (RBAC)**, multi-project tenancy, comprehensive test lifecycle tracking, and an unrestricted **Super Admin Centralized Administration Console**.
 
-First, run the development server:
+Built with **Next.js 16 (App Router)**, **React 19**, **TypeScript**, and **Tailwind CSS**.
+
+---
+
+## 🚀 Getting Started
+
+From this directory (`qa-tracker-next`):
 
 ```bash
+# 1. Install dependencies (if not already installed)
+npm install
+
+# 2. Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# 3. Or build for production
+npm run build
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit **[http://localhost:3000](http://localhost:3000)** in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🌟 Key Features & Requirements Implemented
 
-## Learn More
+### 1. Dashboard & Monitoring
+- Overall QA health index, active project scope selector ("All Projects (Global Scope)" for Super Admin).
+- Real-time telemetry across test execution passes (Pass, Fail, Blocked, Not Run), defects by severity/status, OWASP VAPT vulnerabilities, and API latency benchmarks.
 
-To learn more about Next.js, take a look at the following resources:
+### 2. User Management
+- Create, edit, deactivate, and manage users.
+- Assign users to projects and manage their access scopes.
+- Account activity and status toggling (Active / Deactivated).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Role & Permission Management (RBAC)
+- 7 Standard Roles: **Super Admin**, **QA Admin**, **QA Lead**, **QA Engineer**, **Developer**, **Project Manager**, **Viewer**.
+- Action-level permissions matrix: **View**, **Create**, **Edit**, **Delete**, **Approve**, **Export** across all 14 QA modules.
+- Live interactive RBAC matrix editor.
+- **Super Admin Unrestricted Access**: The Super Admin has global bypass authority across all projects, modules, and configurations.
+- **Quick Persona Switcher**: In the top header, switch instantly between any of the 7 personas to simulate and verify RBAC enforcement live.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 4. Project Management
+- Multi-project workspace management: create, edit, deactivate, and manage projects.
+- Assign QA Leads and team members to projects.
+- Module toggles per project (enable/disable specific testing verticals per project).
 
-## Deploy on Vercel
+### 5. Test Case Management
+- Create, edit, delete, import, export, and manage test cases.
+- Assign test cases to QA engineers.
+- Track execution status: **Pass**, **Fail**, **Blocked**, and **Not Run**.
+- Bulk execution updates and CSV export.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 6. Defect Management
+- Full defect lifecycle: `Open` ➔ `In Progress` ➔ `Resolved` ➔ `Retest` ➔ `Closed` / `Reopened` / `Deferred`.
+- Track severity (Critical, Major, Medium, Minor), priority (P1-P4), status, assignee, and reporter.
+- Reopen workflow with reason capture and reopen counter.
+- Close defects following QA verification.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 7. QA Testing Modules
+Dedicated verticals for all testing domains:
+- **Functional Testing**: Feature-by-feature verification suites.
+- **Regression Testing**: Re-run passes across sprint builds.
+- **Smoke & Sanity Testing**: Fast-feedback build gates.
+- **Performance Testing**: Response time benchmarks, p95/p99 SLA tracking, error rates, throughput.
+- **Security (VAPT) Testing**: OWASP Top 10 vulnerabilities, CVSS scores, remediation tracking.
+- **Cross-Browser Testing**: Compatibility matrix across 10 desktop browser engines.
+- **Mobile & Responsive Testing**: Mobile browser viewports and device compatibility.
+
+### 8. Evidence & Document Management
+- Upload, inspect, download, and manage screenshots, reproduction videos, HAR logs, and test evidence.
+
+### 9. Reports & Analytics
+- Multi-format report generator: Executive Quality Digest, Test Execution Summary, Defect Density & Aging, VAPT Compliance Matrix, and API Performance Reports.
+- Export in PDF and Excel / CSV formats, plus print-ready view.
+
+### 10. Environment & Release Management
+- Manage QA, UAT, Staging, and Production environment statuses and URLs.
+- Manage release candidate builds and track QA Lead sign-off gates.
+
+### 11. Audit Logs
+- Complete immutable audit history tracking actor, role, timestamp, action (CREATE, UPDATE, DELETE, ASSIGN, APPROVE, REOPEN, CLOSE, DEACTIVATE), and entity deltas.
+
+### 12. System Configuration
+- Configure defect severity and priority resolution SLAs.
+- Configure test execution statuses and application notification rules.
+
+### 13. Notifications
+- Real-time in-app notification center for assignments, status changes, approvals, and security alerts.
+
+### 14. Data Management
+- Full platform JSON backup export.
+- Bulk CSV/Excel data ingestion.
+- Historical project data archival.
