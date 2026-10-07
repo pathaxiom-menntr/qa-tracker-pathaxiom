@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
-import { Clock, Activity, Gauge } from "lucide-react";
+import React, { useState } from "react";
+import { Clock, Activity, Gauge, Plus, X } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { useQAStore } from "@/lib/store";
+import { PerfEndpoint } from "@/lib/types";
 
 const COLORS = {
   panel: "#FFFFFF",
@@ -37,7 +38,8 @@ function StatCard({ label, value, sub, icon: Icon, tone }: { label: string; valu
 }
 
 export function Performance() {
-  const { perfFast, perfSlow } = useQAStore();
+  const { perfFast, perfSlow, addPerfEndpoint } = useQAStore();
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const allEndpoints = [...perfFast, ...perfSlow];
   const chartData = allEndpoints.map((e) => ({
@@ -48,6 +50,21 @@ export function Performance() {
 
   return (
     <div className="space-y-6">
+      {/* Header with Add Button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold" style={{ color: COLORS.ink }}>Performance & Latency Monitoring</h2>
+          <p className="text-xs" style={{ color: COLORS.sub }}>Real-time endpoint benchmarks, SLA response thresholds, and latency metrics</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity"
+          style={{ background: COLORS.accent }}
+        >
+          <Plus size={14} />
+          Add Endpoint
+        </button>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard label="Fast Endpoints" value={perfFast.length} sub="Average response < 120ms" icon={Clock} tone={COLORS.green} />
         <StatCard label="Critical / Slow Endpoints" value={perfSlow.length} sub="Coding worker & save routes > 600ms" icon={Gauge} tone={COLORS.red} />
@@ -131,6 +148,246 @@ export function Performance() {
           </tbody>
         </table>
       </div>
+
+      {/* Add Endpoint Modal */}
+      {showAddModal && (
+        <AddEndpointModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={async (data) => {
+            await addPerfEndpoint(data);
+            setShowAddModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
+
+function AddEndpointModal({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (data: PerfEndpoint) => Promise<void>;
+}) {
+  const [ep, setEp] = useState("");
+  const [category, setCategory] = useState<"Fast" | "Slow">("Fast");
+  const [avg, setAvg] = useState("85");
+  const [p95, setP95] = useState("140");
+  const [p99, setP99] = useState("210");
+  const [max, setMax] = useState("320");
+  const [err, setErr] = useState("0");
+  const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ep.trim()) {
+      setErrorMsg("Please enter an endpoint path.");
+      return;
+    }
+
+    const avgNum = parseFloat(avg) || 0;
+    const p95Num = parseFloat(p95) || 0;
+    const p99Num = parseFloat(p99) || 0;
+    const maxNum = parseFloat(max) || 0;
+    const errNum = parseFloat(err) || 0;
+
+    setBusy(true);
+    try {
+      await onAdd({
+        ep: ep.trim().startsWith("/") ? ep.trim() : `/${ep.trim()}`,
+        avg: avgNum,
+        p95: p95Num,
+        p99: p99Num,
+        max: maxNum,
+        err: errNum,
+        category,
+      });
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to add endpoint");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+      onClick={() => !busy && onClose()}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-xl p-5 shadow-2xl"
+        style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Gauge size={17} color={COLORS.accent} />
+            <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>
+              Add Performance Endpoint Benchmark
+            </span>
+          </div>
+          <button onClick={onClose} disabled={busy} className="p-1 rounded hover:bg-slate-100">
+            <X size={16} color={COLORS.sub} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div>
+            <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+              Endpoint Path *
+            </label>
+            <input
+              required
+              value={ep}
+              onChange={(e) => setEp(e.target.value)}
+              placeholder="e.g. /api/reports/download"
+              className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+              style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+              Profile Category *
+            </label>
+            <select
+              value={category}
+              onChange={(e) => {
+                const val = e.target.value as "Fast" | "Slow";
+                setCategory(val);
+                if (val === "Fast") {
+                  setAvg("85");
+                  setP95("140");
+                  setP99("210");
+                  setMax("320");
+                } else {
+                  setAvg("620");
+                  setP95("980");
+                  setP99("1450");
+                  setMax("2100");
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
+              style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+            >
+              <option value="Fast">Fast API Endpoint (&lt; 200ms)</option>
+              <option value="Slow">Slow & Heavy Endpoint (&gt; 500ms)</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+                Average Latency (ms) *
+              </label>
+              <input
+                required
+                type="number"
+                min="0"
+                step="any"
+                value={avg}
+                onChange={(e) => setAvg(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              />
+            </div>
+            <div>
+              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+                P95 Latency (ms) *
+              </label>
+              <input
+                required
+                type="number"
+                min="0"
+                step="any"
+                value={p95}
+                onChange={(e) => setP95(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+                P99 (ms)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={p99}
+                onChange={(e) => setP99(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              />
+            </div>
+            <div>
+              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+                Max (ms)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={max}
+                onChange={(e) => setMax(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              />
+            </div>
+            <div>
+              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+                Error %
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="any"
+                value={err}
+                onChange={(e) => setErr(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-mono"
+                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              />
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div
+              className="text-xs px-3 py-2 rounded-lg"
+              style={{ background: COLORS.red + "14", border: `1px solid ${COLORS.red}44`, color: COLORS.red }}
+            >
+              {errorMsg}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: COLORS.border }}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-100"
+              style={{ color: COLORS.sub }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-sm"
+              style={{ background: COLORS.accent, opacity: busy ? 0.7 : 1 }}
+            >
+              {busy ? "Adding…" : "Add Endpoint"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default Performance;

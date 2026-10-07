@@ -106,11 +106,9 @@ export function UserManagement() {
   const isAdmin = currentUser?.role === "Admin";
   const canCreateUsers = isSuperAdmin || isAdmin;
 
-  // Determine allowed creatable roles:
-  // - Super Admin can create Admin, QA Manager, QA Lead, QA Engineer, Client (and Super Admin)
-  // - Admin can create QA Manager, QA Lead, QA Engineer, and Client
+  // Determine allowed roles when adding a user (Super Admin role is single & predefined, cannot be created):
   const creatableRoles: Role[] = isSuperAdmin
-    ? ["Admin", "QA Manager", "QA Lead", "QA Engineer", "Client", "Super Admin"]
+    ? ["Admin", "QA Manager", "QA Lead", "QA Engineer", "Client"]
     : isAdmin
     ? ["QA Manager", "QA Lead", "QA Engineer", "Client"]
     : [];
@@ -155,11 +153,11 @@ export function UserManagement() {
           <span>
             {isSuperAdmin ? (
               <>
-                Logged in as <b>Super Admin</b>: You have full authority to create and provision credentials for <b>Admins</b>, <b>QA Team</b>, and <b>Clients</b>.
+                Logged in as <b>Super Admin</b>: You have full authority to add and provision credentials for <b>Admins</b>, <b>QA Team</b>, and <b>Clients</b>.
               </>
             ) : isAdmin ? (
               <>
-                Logged in as <b>Admin</b>: You have authorization to create and manage credentials for <b>QA Managers</b>, <b>QA Leads</b>, <b>QA Engineers</b>, and <b>Clients</b>.
+                Logged in as <b>Admin</b>: You have authorization to add and manage credentials for <b>QA Managers</b>, <b>QA Leads</b>, <b>QA Engineers</b>, and <b>Clients</b>.
               </>
             ) : (
               <>
@@ -281,7 +279,7 @@ export function UserManagement() {
             style={{ background: isSuperAdmin ? COLORS.accent : COLORS.accent2 }}
           >
             <UserPlus size={15} />
-            Create User Credentials
+            Add User
           </button>
         )}
       </div>
@@ -460,16 +458,16 @@ export function UserManagement() {
         </div>
       </div>
 
-      {/* Add User Modal with Credentials Creation */}
+      {/* Add User Modal */}
       {showAddModal && (
         <UserModal
-          title={isSuperAdmin ? "Create User Credentials (Super Admin)" : "Create User Credentials (Admin)"}
+          title={isSuperAdmin ? "Add User (Super Admin)" : "Add User (Admin)"}
           subtitle={
             isSuperAdmin
               ? "As Super Admin, provision credentials for Admins, QA Leads, QA Engineers, or Clients with a secure login password."
               : "As Admin, provision credentials for a QA team member or Client with a secure login password."
           }
-          submitLabel="Create Account & Password"
+          submitLabel="Add User"
           availableRoles={creatableRoles}
           requirePassword={true}
           initialData={{
@@ -492,7 +490,7 @@ export function UserManagement() {
           title={`Edit User Credentials — ${editingUser.name}`}
           subtitle="Update account details or reset user password in PostgreSQL."
           submitLabel="Save Changes"
-          availableRoles={isSuperAdmin ? ALL_ROLES : creatableRoles}
+          availableRoles={editingUser.role === "Super Admin" ? ["Super Admin"] : creatableRoles}
           requirePassword={false}
           initialData={{
             name: editingUser.name,

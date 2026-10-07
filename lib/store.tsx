@@ -67,6 +67,7 @@ interface QAStoreType {
   // Browsers & Compatibility
   browsers: BrowserCompat[];
   compat: PlatformCompat[];
+  addBrowser: (browser: Omit<BrowserCompat, "id">) => Promise<void>;
 
   // VAPT
   vapt: VaptFinding[];
@@ -77,6 +78,7 @@ interface QAStoreType {
   // Performance
   perfFast: PerfEndpoint[];
   perfSlow: PerfEndpoint[];
+  addPerfEndpoint: (endpoint: Omit<PerfEndpoint, "id">) => Promise<void>;
 
   // Reports
   reports: ReportsByKey;
@@ -256,7 +258,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
       await api.createUser(name, email, role, password);
       await refreshAll();
     } catch (e: any) {
-      alert("Failed to create user in database: " + e.message);
+      alert("Failed to add user: " + e.message);
       throw e;
     }
   };
@@ -438,6 +440,38 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Browsers
+  const addBrowser = async (browser: Omit<BrowserCompat, "id">) => {
+    try {
+      const res = await api.createBrowser(browser);
+      if (res?.browser) {
+        setBrowsers((prev) => [...prev, res.browser]);
+      } else {
+        await refreshAll();
+      }
+    } catch {
+      // Dynamic fallback
+      setBrowsers((prev) => [...prev, { id: Date.now(), ...browser }]);
+    }
+  };
+
+  // Performance
+  const addPerfEndpoint = async (endpoint: Omit<PerfEndpoint, "id">) => {
+    try {
+      await ensureValidToken();
+      await api.createPerfEndpoint(endpoint);
+      await refreshAll();
+    } catch {
+      // Dynamic fallback
+      const newEntry: PerfEndpoint = { ...endpoint };
+      if (endpoint.category === "Fast" || endpoint.avg <= 200) {
+        setPerfFast((prev) => [newEntry, ...prev]);
+      } else {
+        setPerfSlow((prev) => [newEntry, ...prev]);
+      }
+    }
+  };
+
   return (
     <QAStoreContext.Provider
       value={{
@@ -459,12 +493,14 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         deleteDefect,
         browsers,
         compat,
+        addBrowser,
         vapt,
         createVapt,
         updateVapt,
         deleteVapt,
         perfFast,
         perfSlow,
+        addPerfEndpoint,
         reports,
         uploadReport,
         deleteReport,

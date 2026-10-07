@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { queryDb } from "@/lib/db";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 
@@ -23,6 +24,20 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Name, email, and password are required" },
         { status: 400 }
+      );
+    }
+
+    // Enforce single Super Admin: Check if a Super Admin is already registered
+    const existingSuperAdmin = await queryDb<{ id: number }>(
+      "SELECT id FROM users WHERE role = 'Super Admin' LIMIT 1"
+    );
+    if (existingSuperAdmin.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "A Super Admin account already exists. Super Admin is a single, predefined system role for the QA Tracker.",
+        },
+        { status: 403 }
       );
     }
 

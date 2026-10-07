@@ -226,6 +226,8 @@ function AuthScreen() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const hasSuperAdmin = users.some((u) => u.role === "Super Admin");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -244,6 +246,11 @@ function AuthScreen() {
       if (mode === "login") {
         await login(email.trim(), password);
       } else {
+        if (hasSuperAdmin) {
+          setError("A Super Admin already exists. Only one predefined Super Admin is permitted for QA Tracker.");
+          setBusy(false);
+          return;
+        }
         if (!name.trim()) {
           setError("Full name is required.");
           setBusy(false);
@@ -296,40 +303,51 @@ function AuthScreen() {
           </div>
         </div>
 
-        {/* Tab switch */}
-        <div
-          className="flex mb-4 rounded-lg overflow-hidden border p-0.5"
-          style={{ borderColor: COLORS.border, background: COLORS.panel2 }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login");
-              setError("");
-            }}
-            className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all"
-            style={{
-              background: mode === "login" ? COLORS.accent : "transparent",
-              color: mode === "login" ? "#fff" : COLORS.sub,
-            }}
+        {/* Tab switch or Single Super Admin Login Header */}
+        {!hasSuperAdmin ? (
+          <div
+            className="flex mb-4 rounded-lg overflow-hidden border p-0.5"
+            style={{ borderColor: COLORS.border, background: COLORS.panel2 }}
           >
-            Log in
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode("register");
-              setError("");
-            }}
-            className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all"
-            style={{
-              background: mode === "register" ? COLORS.accent : "transparent",
-              color: mode === "register" ? "#fff" : COLORS.sub,
-            }}
-          >
-            Sign up (Super Admin)
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("login");
+                setError("");
+              }}
+              className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all"
+              style={{
+                background: mode === "login" ? COLORS.accent : "transparent",
+                color: mode === "login" ? "#fff" : COLORS.sub,
+              }}
+            >
+              Log in
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("register");
+                setError("");
+              }}
+              className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all"
+              style={{
+                background: mode === "register" ? COLORS.accent : "transparent",
+                color: mode === "register" ? "#fff" : COLORS.sub,
+              }}
+            >
+              Setup Super Admin
+            </button>
+          </div>
+        ) : (
+          <div className="mb-4 text-center">
+            <div className="text-xs font-semibold" style={{ color: COLORS.ink }}>
+              Log in to your account
+            </div>
+            <div className="text-[11px] mt-0.5" style={{ color: COLORS.sub }}>
+              Enter your credentials to access the QA Tracker
+            </div>
+          </div>
+        )}
 
         {/* Super Admin Notice Banner in Sign Up Mode */}
         {mode === "register" ? (

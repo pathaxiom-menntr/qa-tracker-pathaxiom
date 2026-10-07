@@ -13,6 +13,17 @@ export async function PUT(req: Request, { params }: RouteParams) {
     const body = await req.json();
     const { name, email, role, status, password } = body;
 
+    // Prevent promoting any account to Super Admin
+    if (role === "Super Admin") {
+      const targetUser = await queryDb<{ role: string }>(`SELECT role FROM users WHERE id = ${parseInt(id, 10)}`);
+      if (targetUser.length === 0 || targetUser[0].role !== "Super Admin") {
+        return NextResponse.json(
+          { error: "Promoting accounts to Super Admin is prohibited. Super Admin is a single predefined role." },
+          { status: 403 }
+        );
+      }
+    }
+
     const updates: string[] = [];
     if (name) updates.push(`name = '${name.trim().replace(/'/g, "''")}'`);
     if (email) updates.push(`email = '${email.trim().toLowerCase().replace(/'/g, "''")}'`);
@@ -50,6 +61,15 @@ export async function DELETE(req: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const userId = parseInt(id, 10);
+
+    // Prevent deleting the predefined Super Admin
+    const targetUser = await queryDb<{ role: string }>(`SELECT role FROM users WHERE id = ${userId}`);
+    if (targetUser.length > 0 && targetUser[0].role === "Super Admin") {
+      return NextResponse.json(
+        { error: "The single predefined Super Admin account cannot be deleted." },
+        { status: 403 }
+      );
+    }
 
     await execDb(`DELETE FROM users WHERE id = ${userId}`);
     return NextResponse.json({ ok: true, message: `User ${userId} deleted` });

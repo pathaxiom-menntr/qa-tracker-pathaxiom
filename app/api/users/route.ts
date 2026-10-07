@@ -23,6 +23,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, email, role = "QA Engineer", password = "password123" } = body;
 
+    // Strict Restriction: Super Admin is a single, predefined system role
+    if (role === "Super Admin") {
+      return NextResponse.json(
+        { error: "Super Admin is a single predefined role. Adding additional Super Admin accounts is prohibited." },
+        { status: 403 }
+      );
+    }
+
     if (!name || !email) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
     }

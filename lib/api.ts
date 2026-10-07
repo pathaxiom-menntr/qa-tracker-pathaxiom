@@ -151,6 +151,16 @@ export const api = {
     return handle(await fetch(`${BASE}/browsers`));
   },
 
+  async createBrowser(browser: Omit<BrowserCompat, "id">): Promise<{ ok: boolean; browser: BrowserCompat }> {
+    return handle(
+      await fetch(`${BASE}/browsers`, {
+        method: "POST",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify(browser),
+      })
+    );
+  },
+
   async getCompat(): Promise<{ compat: PlatformCompat[] }> {
     return handle(await fetch(`${BASE}/compat`));
   },
@@ -192,6 +202,16 @@ export const api = {
   // ==================== PERFORMANCE ====================
   async getPerformance(): Promise<{ fast: PerfEndpoint[]; slow: PerfEndpoint[] }> {
     return handle(await fetch(`${BASE}/performance`));
+  },
+
+  async createPerfEndpoint(endpoint: Omit<PerfEndpoint, "id">): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/performance`, {
+        method: "POST",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify(endpoint),
+      })
+    );
   },
 
   // ==================== REPORTS ====================
