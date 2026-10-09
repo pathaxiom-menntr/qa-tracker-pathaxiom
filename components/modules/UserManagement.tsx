@@ -368,6 +368,11 @@ export function UserManagement() {
                         >
                           {u.role}
                         </span>
+                        {u.role === "Client" && (
+                          <span className="block text-[10px] text-slate-500 font-medium mt-0.5">
+                            Org: {u.client_name || "PathAxiom"}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3.5 px-4">
                         <span
@@ -475,10 +480,11 @@ export function UserManagement() {
             email: "",
             role: creatableRoles[0] || "Admin",
             password: "",
+            client_name: "PathAxiom",
           }}
           onClose={() => setShowAddModal(false)}
           onSubmit={async (data) => {
-            await addUser(data.name, data.email, data.role, data.password!);
+            await addUser(data.name, data.email, data.role, data.password!, data.client_name);
             setShowAddModal(false);
           }}
         />
@@ -497,10 +503,11 @@ export function UserManagement() {
             email: editingUser.email,
             role: editingUser.role,
             password: "",
+            client_name: editingUser.client_name || "PathAxiom",
           }}
           onClose={() => setEditingUser(null)}
           onSubmit={async (data) => {
-            await editUser(editingUser.id, data.name, data.email, data.role, data.password || undefined);
+            await editUser(editingUser.id, data.name, data.email, data.role, data.password || undefined, data.client_name);
             setEditingUser(null);
           }}
         />
@@ -524,13 +531,14 @@ function UserModal({
   submitLabel: string;
   availableRoles: Role[];
   requirePassword: boolean;
-  initialData: { name: string; email: string; role: Role; password?: string };
+  initialData: { name: string; email: string; role: Role; password?: string; client_name?: string };
   onClose: () => void;
-  onSubmit: (data: { name: string; email: string; role: Role; password?: string }) => Promise<void>;
+  onSubmit: (data: { name: string; email: string; role: Role; password?: string; client_name?: string }) => Promise<void>;
 }) {
   const [name, setName] = useState(initialData.name);
   const [email, setEmail] = useState(initialData.email);
   const [role, setRole] = useState<Role>(initialData.role);
+  const [clientName, setClientName] = useState(initialData.client_name || "PathAxiom");
   const [password, setPassword] = useState(initialData.password || "");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -562,6 +570,7 @@ function UserModal({
         email: email.trim(),
         role,
         password: password.trim() || undefined,
+        client_name: role === "Client" ? clientName.trim() : undefined,
       });
     } catch (err: any) {
       setError(err.message || "Failed to save user credentials");
@@ -702,6 +711,29 @@ function UserModal({
               ))}
             </select>
           </div>
+
+          {role === "Client" && (
+            <div>
+              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+                Client Organization / Company <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="e.g. PathAxiom, FinTech Global, HealthPlus Systems"
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-medium"
+                style={{
+                  background: COLORS.panel2,
+                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.ink,
+                }}
+              />
+              <span className="text-[10px] mt-1 block text-slate-500">
+                This client will strictly view defects and projects belonging to this organization.
+              </span>
+            </div>
+          )}
 
           {error && (
             <div

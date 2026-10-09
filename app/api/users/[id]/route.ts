@@ -11,7 +11,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, email, role, status, password } = body;
+    const { name, email, role, status, password, client_name, assigned_projects } = body;
 
     // Prevent promoting any account to Super Admin
     if (role === "Super Admin") {
@@ -29,6 +29,12 @@ export async function PUT(req: Request, { params }: RouteParams) {
     if (email) updates.push(`email = '${email.trim().toLowerCase().replace(/'/g, "''")}'`);
     if (role) updates.push(`role = '${role.replace(/'/g, "''")}'`);
     if (status) updates.push(`status = '${status.replace(/'/g, "''")}'`);
+    if (client_name !== undefined) {
+      updates.push(`client_name = ${client_name ? `'${client_name.replace(/'/g, "''")}'` : "NULL"}`);
+    }
+    if (assigned_projects !== undefined) {
+      updates.push(`assigned_projects = '${JSON.stringify(assigned_projects).replace(/'/g, "''")}'::jsonb`);
+    }
     if (password && password.length >= 6) {
       const hash = await bcrypt.hash(password, 10);
       updates.push(`password_hash = '${hash}'`);
@@ -42,7 +48,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
       `UPDATE users
        SET ${updates.join(", ")}
        WHERE id = ${parseInt(id, 10)}
-       RETURNING id, name, email, role, status, created_at as "createdAt"`
+       RETURNING id, name, email, role, status, client_name, assigned_projects, created_at as "createdAt"`
     );
 
     if (updated.length === 0) {

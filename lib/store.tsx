@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import {
   User,
   Role,
+  Project,
   Defect,
   Portal,
   BrowserCompat,
@@ -17,6 +18,55 @@ import { api } from "./api";
 // Fallback seed data if backend is offline
 const SEED_USERS: User[] = [
   { id: 46, name: "Alex Vance", email: "superadmin@menntr.com", role: "Super Admin", status: "active", createdAt: "2026-09-30T17:52:00Z" },
+];
+
+const SEED_PROJECTS: Project[] = [
+  {
+    id: 1,
+    code: "PRJ-001",
+    name: "Assessment Platform",
+    client_name: "PathAxiom",
+    description: "Next-gen developer assessment engine with live code evaluation and proctoring",
+    modules: ["Admin Portal", "Assessment Flow", "Coding Worker", "User Management", "Analytics"],
+    features: {
+      "Admin Portal": ["User CRUD", "Roles and Permissions", "Test Config"],
+      "Assessment Flow": ["Test Launch", "Timer Service", "Submission Flow"],
+      "Coding Worker": ["Docker Sandbox", "Execution Engine", "Output Diff"],
+      "User Management": ["Account Provisioning", "Status Toggle", "Password Reset"],
+      Analytics: ["Score Aggregation", "Cohort Reports"],
+    },
+    assigned_user_ids: [],
+  },
+  {
+    id: 2,
+    code: "PRJ-002",
+    name: "Payment Gateway & Checkout",
+    client_name: "FinTech Global",
+    description: "Multi-currency payment processing and reconciliation portal",
+    modules: ["Checkout UI", "Webhook Processing", "Refund Engine", "Merchant Dashboard"],
+    features: {
+      "Checkout UI": ["Card Input", "UPI QR Flow", "3D Secure Redirect"],
+      "Webhook Processing": ["Stripe Listener", "PayPal Callback", "Retry Worker"],
+      "Refund Engine": ["Partial Refunds", "Ledger Audit", "Reversal API"],
+      "Merchant Dashboard": ["Settlement Reports", "API Keys Management"],
+    },
+    assigned_user_ids: [],
+  },
+  {
+    id: 3,
+    code: "PRJ-003",
+    name: "HealthPlus EHR Mobile",
+    client_name: "HealthPlus Systems",
+    description: "HIPAA-compliant Electronic Health Record and patient telemedicine platform",
+    modules: ["Patient Records", "Telehealth Video", "Prescription Service", "Billing"],
+    features: {
+      "Patient Records": ["Vitals Sync", "Lab Results", "History Timeline"],
+      "Telehealth Video": ["WebRTC Call", "Screen Sharing", "Waiting Room"],
+      "Prescription Service": ["e-Rx Generation", "Pharmacy Dispatch"],
+      Billing: ["Insurance Claim", "Copay Processing"],
+    },
+    assigned_user_ids: [],
+  },
 ];
 
 const SEED_BROWSERS: BrowserCompat[] = [
@@ -48,10 +98,15 @@ interface QAStoreType {
 
   // Users Management (Live Database)
   users: User[];
-  addUser: (name: string, email: string, role: Role, password: string) => Promise<void>;
-  editUser: (id: number, name: string, email: string, role: Role, password?: string) => Promise<void>;
+  addUser: (name: string, email: string, role: Role, password: string, client_name?: string, assigned_projects?: string[]) => Promise<void>;
+  editUser: (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[]) => Promise<void>;
   toggleUserStatus: (id: number) => Promise<void>;
   deleteUser: (id: number) => Promise<void>;
+
+  // Projects & Hierarchy (Client -> Project -> Module -> Feature)
+  projects: Project[];
+  addProject: (project: Partial<Project>) => Promise<void>;
+  updateProject: (id: number, patch: Partial<Project>) => Promise<void>;
 
   // Portals (Test Cases)
   portals: Portal[];
@@ -60,7 +115,20 @@ interface QAStoreType {
 
   // Defects
   defects: Defect[];
-  createDefect: (defect: { id?: string; module: string; severity: string; priority: string; title: string; description?: string; status?: string }) => Promise<void>;
+  createDefect: (defect: {
+    id?: string;
+    client_name?: string;
+    project_name?: string;
+    project_code?: string;
+    module: string;
+    feature?: string;
+    severity: string;
+    priority: string;
+    title: string;
+    description?: string;
+    status?: string;
+    assignee?: string;
+  }) => Promise<void>;
   updateDefect: (id: string, patch: Partial<Defect>) => Promise<void>;
   deleteDefect: (id: string) => Promise<void>;
 
@@ -98,6 +166,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
 
   // Live Database states
   const [users, setUsers] = useState<User[]>(SEED_USERS);
+  const [projects, setProjects] = useState<Project[]>(SEED_PROJECTS);
   const [portals, setPortals] = useState<Portal[]>([]);
   const [defects, setDefects] = useState<Defect[]>([]);
   const [browsers, setBrowsers] = useState<BrowserCompat[]>(SEED_BROWSERS);
@@ -130,6 +199,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const [
         usersRes,
+        projectsRes,
         defectsRes,
         portalsRes,
         browsersRes,
@@ -139,6 +209,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         reportsRes,
       ] = await Promise.allSettled([
         api.getUsers(),
+        api.getProjects(),
         api.getDefects(),
         api.getPortals(),
         api.getBrowsers(),
@@ -150,6 +221,9 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
 
       if (usersRes.status === "fulfilled" && usersRes.value?.users) {
         setUsers(usersRes.value.users);
+      }
+      if (projectsRes.status === "fulfilled" && projectsRes.value?.projects) {
+        setProjects(projectsRes.value.projects);
       }
       if (defectsRes.status === "fulfilled" && defectsRes.value?.defects) {
         setDefects(defectsRes.value.defects);
@@ -253,9 +327,9 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // User Management
-  const addUser = async (name: string, email: string, role: Role, password: string) => {
+  const addUser = async (name: string, email: string, role: Role, password: string, client_name?: string, assigned_projects?: string[]) => {
     try {
-      await api.createUser(name, email, role, password);
+      await api.createUser(name, email, role, password, client_name, assigned_projects);
       await refreshAll();
     } catch (e: any) {
       alert("Failed to add user: " + e.message);
@@ -263,12 +337,12 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const editUser = async (id: number, name: string, email: string, role: Role, password?: string) => {
+  const editUser = async (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[]) => {
     try {
-      await api.updateUser(id, { name, email, role, password: password || undefined });
+      await api.updateUser(id, { name, email, role, password: password || undefined, client_name, assigned_projects });
       await refreshAll();
       if (currentUser?.id === id) {
-        setCurrentUser((prev) => (prev ? { ...prev, name, email, role } : null));
+        setCurrentUser((prev) => (prev ? { ...prev, name, email, role, client_name, assigned_projects } : null));
       }
     } catch (e: any) {
       alert("Failed to update user in database: " + e.message);
@@ -297,6 +371,29 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Projects
+  const addProject = async (project: Partial<Project>) => {
+    try {
+      await ensureValidToken();
+      await api.createProject(project);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to create project: " + e.message);
+      throw e;
+    }
+  };
+
+  const updateProject = async (id: number, patch: Partial<Project>) => {
+    try {
+      await ensureValidToken();
+      await api.updateProject(id, patch);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to update project: " + e.message);
+      throw e;
+    }
+  };
+
   // Portals
   const createPortal = async (name: string) => {
     try {
@@ -321,12 +418,17 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
   // Defects
   const createDefect = async (defect: {
     id?: string;
+    client_name?: string;
+    project_name?: string;
+    project_code?: string;
     module: string;
+    feature?: string;
     severity: string;
     priority: string;
     title: string;
     description?: string;
     status?: string;
+    assignee?: string;
   }) => {
     try {
       await ensureValidToken();
@@ -343,13 +445,18 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
 
       await api.createDefect({
         id: defectId,
+        client_name: defect.client_name || "PathAxiom",
+        project_name: defect.project_name || "Assessment Platform",
+        project_code: defect.project_code || "PRJ-001",
         module: defect.module.trim(),
+        feature: defect.feature || "General",
         severity: defect.severity,
         priority: defect.priority,
         title: defect.title.trim(),
         description: (defect.description || "").trim(),
         status: defect.status || "Open",
         created_by: currentUser?.name || "You",
+        assignee: defect.assignee || "Unassigned",
       });
 
       await refreshAll();
@@ -484,6 +591,9 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         editUser,
         toggleUserStatus,
         deleteUser,
+        projects,
+        addProject,
+        updateProject,
         portals,
         createPortal,
         deletePortal,

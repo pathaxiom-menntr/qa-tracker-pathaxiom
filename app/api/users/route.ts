@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 export async function GET() {
   try {
     const users = await queryDb(
-      `SELECT id, name, email, role, COALESCE(status, 'active') as status, created_at as "createdAt"
+      `SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, created_at as "createdAt"
        FROM users
        ORDER BY id DESC`
     );
@@ -21,7 +21,14 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, email, role = "QA Engineer", password = "password123" } = body;
+    const {
+      name,
+      email,
+      role = "QA Engineer",
+      password = "password123",
+      client_name = null,
+      assigned_projects = [],
+    } = body;
 
     // Strict Restriction: Super Admin is a single, predefined system role
     if (role === "Super Admin") {
@@ -47,11 +54,12 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const clientVal = client_name ? `'${client_name.replace(/'/g, "''")}'` : "NULL";
 
     const inserted = await queryDb(
-      `INSERT INTO users (name, email, password_hash, role, status)
-       VALUES ('${cleanName.replace(/'/g, "''")}', '${cleanEmail.replace(/'/g, "''")}', '${hashedPassword}', '${role}', 'active')
-       RETURNING id, name, email, role, status, created_at as "createdAt"`
+      `INSERT INTO users (name, email, password_hash, role, status, client_name, assigned_projects)
+       VALUES ('${cleanName.replace(/'/g, "''")}', '${cleanEmail.replace(/'/g, "''")}', '${hashedPassword}', '${role}', 'active', ${clientVal}, '${JSON.stringify(assigned_projects).replace(/'/g, "''")}'::jsonb)
+       RETURNING id, name, email, role, status, client_name, assigned_projects, created_at as "createdAt"`
     );
 
     return NextResponse.json({ ok: true, user: inserted[0] }, { status: 201 });

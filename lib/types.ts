@@ -12,18 +12,38 @@ export interface User {
   email: string;
   role: Role;
   status: "active" | "deactivated";
+  client_name?: string;
+  assigned_projects?: string[];
   createdAt: string;
   createdBy?: string;
 }
 
+export interface Project {
+  id: number;
+  code: string;
+  name: string;
+  client_name: string;
+  description?: string;
+  modules: string[];
+  features: Record<string, string[]>;
+  assigned_user_ids?: (number | string)[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Defect {
   id: string;
+  client_name?: string;
+  project_name?: string;
+  project_code?: string;
   module: string;
+  feature?: string;
   severity: string;
   priority: string;
   title: string;
   description?: string;
   status: string;
+  assignee?: string;
   created_by?: string;
   updated_by?: string;
   created_at?: string;

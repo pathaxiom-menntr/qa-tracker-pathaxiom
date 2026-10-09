@@ -1,4 +1,4 @@
-import { Role, User, Defect, Portal, BrowserCompat, PlatformCompat, VaptFinding, PerfEndpoint, ReportsByKey } from "./types";
+import { Role, User, Project, Defect, Portal, BrowserCompat, PlatformCompat, VaptFinding, PerfEndpoint, ReportsByKey } from "./types";
 
 const BASE = "/api";
 
@@ -60,12 +60,12 @@ export const api = {
     return handle(await fetch(`${BASE}/users`));
   },
 
-  async createUser(name: string, email: string, role: Role, password = "password123"): Promise<{ ok: boolean; user: User }> {
+  async createUser(name: string, email: string, role: Role, password = "password123", client_name?: string, assigned_projects?: string[]): Promise<{ ok: boolean; user: User }> {
     return handle(
       await fetch(`${BASE}/users`, {
         method: "POST",
         headers: jsonHeaders,
-        body: JSON.stringify({ name, email, role, password }),
+        body: JSON.stringify({ name, email, role, password, client_name, assigned_projects }),
       })
     );
   },
@@ -118,6 +118,31 @@ export const api = {
       await fetch(`${BASE}/defects/${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers: authHeaders(),
+      })
+    );
+  },
+
+  // ==================== PROJECTS ====================
+  async getProjects(): Promise<{ ok: boolean; projects: Project[] }> {
+    return handle(await fetch(`${BASE}/projects`));
+  },
+
+  async createProject(project: Partial<Project>): Promise<{ ok: boolean; project: Project }> {
+    return handle(
+      await fetch(`${BASE}/projects`, {
+        method: "POST",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify(project),
+      })
+    );
+  },
+
+  async updateProject(id: number, patch: Partial<Project>): Promise<{ ok: boolean; project: Project }> {
+    return handle(
+      await fetch(`${BASE}/projects/${id}`, {
+        method: "PUT",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify(patch),
       })
     );
   },

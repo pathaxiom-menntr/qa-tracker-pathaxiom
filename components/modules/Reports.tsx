@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Trash2,
   File,
+  FileText,
   FileSpreadsheet,
   Calendar,
   User as UserIcon,
@@ -25,6 +26,9 @@ import {
   Info,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -114,7 +118,7 @@ function ActionBtn({
 }
 
 export function Reports() {
-  const { reports, uploadReport, deleteReport, currentUser } = useQAStore();
+  const { reports, uploadReport, deleteReport, defects, currentUser } = useQAStore();
   const [q, setQ] = useState("");
   const [activeUpload, setActiveUpload] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
@@ -126,13 +130,84 @@ export function Reports() {
     comments: string;
   } | null>(null);
 
+  const isClient = currentUser?.role === "Client";
+  const clientOrg = currentUser?.client_name || "PathAxiom";
+
+  // Client isolation: only show defects relevant to the client if role is Client
+  const visibleDefects = isClient
+    ? defects.filter(
+        (d) => (d.client_name || "").toLowerCase() === clientOrg.toLowerCase()
+      )
+    : defects;
+
+  const handleDownloadLiveDefectsExcel = () => {
+    if (visibleDefects.length === 0) {
+      alert("No defects available to export.");
+      return;
+    }
+    const rows = visibleDefects.map((d) => ({
+      "Bug ID": d.id,
+      Client: d.client_name || "PathAxiom",
+      Project: d.project_name || "Assessment Platform",
+      "Project Code": d.project_code || "PRJ-001",
+      "Module / Category": d.module,
+      Feature: d.feature || "General",
+      Title: d.title,
+      Severity: d.severity,
+      Priority: d.priority,
+      Status: d.status,
+      Assignee: d.assignee || "Unassigned",
+      "Reported By": d.created_by || "QA Team",
+      "Created Date": d.created_at ? new Date(d.created_at).toLocaleDateString() : "-",
+      Description: d.description || "",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Live Bug Report");
+    XLSX.writeFile(workbook, `QA_Bug_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleDownloadLiveDefectsPDF = () => {
+    if (visibleDefects.length === 0) {
+      alert("No defects available to export.");
+      return;
+    }
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setFillColor(79, 70, 229);
+    doc.rect(0, 0, 297, 18, "F");
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text("QA TRACKER — LIVE BUG & DEFECT AUDIT REPORT", 14, 12);
+
+    autoTable(doc, {
+      startY: 25,
+      head: [["Bug ID", "Client", "Project", "Module", "Feature", "Title", "Severity", "Priority", "Status", "Assignee"]],
+      body: visibleDefects.map((d) => [
+        d.id,
+        d.client_name || "PathAxiom",
+        d.project_name || "Assessment Platform",
+        d.module,
+        d.feature || "General",
+        d.title.length > 40 ? d.title.substring(0, 38) + "…" : d.title,
+        d.severity,
+        d.priority,
+        d.status,
+        d.assignee || "Unassigned",
+      ]),
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: "bold" },
+    });
+    doc.save(`QA_Bug_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const filtered = REPORT_TYPES.filter((r) =>
     r.name.toLowerCase().includes(q.toLowerCase())
   );
   const uploadedCount = Object.keys(reports).length;
 
   const handleDownload = (fileName: string) => {
-    // Generate simple placeholder text blob for download demonstration
     const blob = new Blob([`Report Content: ${fileName}\nExported from QA Tracker Suite`], {
       type: "text/plain",
     });
@@ -267,13 +342,39 @@ export function Reports() {
                   </div>
                 </>
               ) : (
-                <button
-                  onClick={() => setActiveUpload(rt.key)}
-                  className="flex items-center justify-center gap-1.5 py-3 rounded-lg text-xs font-medium border border-dashed hover:bg-slate-50 transition-colors mt-auto"
-                  style={{ borderColor: COLORS.border, color: COLORS.accent }}
-                >
-                  <Upload size={14} /> Upload Report
-                </button>
+                <div className="space-y-2 mt-auto">
+                  {rt.key === "defect" && (
+                    <div className="p-2.5 rounded-lg bg-indigo-50/70 border border-indigo-100 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between font-medium text-indigo-900">
+                        <span>Live Database Defects</span>
+                        <span className="font-bold">{visibleDefects.length}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleDownloadLiveDefectsExcel}
+                          className="flex items-center justify-center gap-1 py-1 px-2 rounded text-[11px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                        >
+                          <FileSpreadsheet size={12} /> Excel (.xlsx)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDownloadLiveDefectsPDF}
+                          className="flex items-center justify-center gap-1 py-1 px-2 rounded text-[11px] font-semibold bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
+                        >
+                          <FileText size={12} /> PDF (.pdf)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setActiveUpload(rt.key)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium border border-dashed hover:bg-slate-50 transition-colors"
+                    style={{ borderColor: COLORS.border, color: COLORS.accent }}
+                  >
+                    <Upload size={14} /> Upload Custom Report
+                  </button>
+                </div>
               )}
             </div>
           );
