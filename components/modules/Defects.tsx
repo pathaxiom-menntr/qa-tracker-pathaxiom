@@ -18,7 +18,23 @@ import {
   Settings2,
   CheckCircle2,
   ShieldAlert,
+  Calendar,
+  BarChart3,
+  TrendingUp,
+  RotateCcw,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -120,6 +136,10 @@ export function Defects() {
   const [modFilter, setModFilter] = useState("All");
   const [sevFilter, setSevFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
+  const [showKpiCharts, setShowKpiCharts] = useState<boolean>(false);
 
   // Keep client locked for Client user
   useEffect(() => {
@@ -173,7 +193,7 @@ export function Defects() {
     return defects;
   }, [defects, isClient, clientOrgName, accessibleProjects, currentUser, userAssignedProjects]);
 
-  // Fully Filtered Defects (respects search and all active filters)
+  // Fully Filtered Defects (respects search, client, project, module, severity, status, and date filter)
   const filtered = useMemo(() => {
     return accessibleDefects.filter((d) => {
       // Client filter
@@ -198,6 +218,48 @@ export function Defects() {
       // Status filter
       if (statusFilter !== "All" && d.status !== statusFilter) return false;
 
+      // Date Filter
+      if (dateFilter !== "all") {
+        if (d.created_at) {
+          const dDate = new Date(d.created_at);
+          if (!isNaN(dDate.getTime())) {
+            const now = new Date();
+            if (dateFilter === "today") {
+              if (
+                dDate.getFullYear() !== now.getFullYear() ||
+                dDate.getMonth() !== now.getMonth() ||
+                dDate.getDate() !== now.getDate()
+              ) return false;
+            } else if (dateFilter === "yesterday") {
+              const yest = new Date(now);
+              yest.setDate(now.getDate() - 1);
+              if (
+                dDate.getFullYear() !== yest.getFullYear() ||
+                dDate.getMonth() !== yest.getMonth() ||
+                dDate.getDate() !== yest.getDate()
+              ) return false;
+            } else if (dateFilter === "last7") {
+              const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+              if (dDate < sevenDaysAgo) return false;
+            } else if (dateFilter === "last30") {
+              const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+              if (dDate < thirtyDaysAgo) return false;
+            } else if (dateFilter === "this_month") {
+              if (dDate.getFullYear() !== now.getFullYear() || dDate.getMonth() !== now.getMonth()) return false;
+            } else if (dateFilter === "custom") {
+              if (customStartDate) {
+                const start = new Date(customStartDate + "T00:00:00");
+                if (dDate < start) return false;
+              }
+              if (customEndDate) {
+                const end = new Date(customEndDate + "T23:59:59");
+                if (dDate > end) return false;
+              }
+            }
+          }
+        }
+      }
+
       // Search Query
       if (q.trim()) {
         const search = q.toLowerCase();
@@ -214,12 +276,38 @@ export function Defects() {
 
       return true;
     });
-  }, [accessibleDefects, selectedClient, selectedProject, modFilter, sevFilter, statusFilter, q]);
+  }, [accessibleDefects, selectedClient, selectedProject, modFilter, sevFilter, statusFilter, dateFilter, customStartDate, customEndDate, q]);
 
-  // Summary Metrics
+  // Summary Metrics (dynamically computed from filtered)
   const criticalCount = filtered.filter((d) => d.severity === "Critical" || d.severity === "Major").length;
   const openCount = filtered.filter((d) => d.status === "Open" || d.status === "In Progress" || d.status === "Reopened").length;
   const closedCount = filtered.filter((d) => d.status === "Closed").length;
+
+  // Dynamic KPI Charts Data from filtered defects
+  const kpiSeverityData = useMemo(() => {
+    return ["Critical", "Major", "Medium", "Minor"].map((s) => ({
+      name: s,
+      count: filtered.filter((d) => d.severity === s || (s === "Major" && d.severity === "High") || (s === "Minor" && d.severity === "Low")).length,
+    }));
+  }, [filtered]);
+
+  const kpiStatusData = useMemo(() => {
+    return ["Open", "In Progress", "Reopened", "Closed"].map((st) => ({
+      name: st,
+      count: filtered.filter((d) => d.status === st).length,
+    })).filter((entry) => entry.count > 0);
+  }, [filtered]);
+
+  const kpiModuleData = useMemo(() => {
+    const map: Record<string, number> = {};
+    filtered.forEach((d) => {
+      map[d.module] = (map[d.module] || 0) + 1;
+    });
+    return Object.entries(map)
+      .map(([module, count]) => ({ module, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [filtered]);
 
   // Modals
   const [showAdd, setShowAdd] = useState(false);
@@ -494,7 +582,7 @@ export function Defects() {
     doc.text(`Client Scope: ${selectedClient === "All" ? "All Organizations" : selectedClient}`, 18, 28);
     doc.text(`Project Scope: ${selectedProject === "All" ? "All Projects" : selectedProject}`, 85, 28);
     doc.text(`Module: ${modFilter}`, 165, 28);
-    doc.text(`Severity: ${sevFilter} | Status: ${statusFilter}`, 215, 28);
+    doc.text(`Severity: ${sevFilter} | Status: ${statusFilter} | Date: ${dateFilter}`, 210, 28);
 
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
@@ -594,28 +682,121 @@ export function Defects() {
         </div>
       )}
 
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
-          <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Filtered Defects</div>
-          <div className="text-2xl font-bold mt-1" style={{ color: COLORS.ink }}>{filtered.length}</div>
-          <div className="text-xs mt-1" style={{ color: COLORS.sub }}>In active query scope</div>
+      {/* KPI Cards Row with Dynamic Graphs Toggle */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <TrendingUp size={14} className="text-indigo-600" />
+            <span>Defect Metrics & KPI Status</span>
+          </div>
+          <button
+            onClick={() => setShowKpiCharts(!showKpiCharts)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shadow-xs cursor-pointer"
+            style={{
+              background: showKpiCharts ? COLORS.accent : COLORS.panel,
+              color: showKpiCharts ? "#ffffff" : COLORS.accent,
+              borderColor: showKpiCharts ? COLORS.accent : COLORS.border,
+            }}
+          >
+            <BarChart3 size={13} />
+            {showKpiCharts ? "Hide KPI Graphs" : "Dynamic KPI Graphs"}
+          </button>
         </div>
-        <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
-          <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Critical & Major</div>
-          <div className="text-2xl font-bold mt-1" style={{ color: COLORS.red }}>{criticalCount}</div>
-          <div className="text-xs mt-1" style={{ color: COLORS.sub }}>Requires urgent resolution</div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+            <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Filtered Defects</div>
+            <div className="text-2xl font-bold mt-1" style={{ color: COLORS.ink }}>{filtered.length}</div>
+            <div className="text-xs mt-1" style={{ color: COLORS.sub }}>In active query scope</div>
+          </div>
+          <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+            <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Critical & Major</div>
+            <div className="text-2xl font-bold mt-1" style={{ color: COLORS.red }}>{criticalCount}</div>
+            <div className="text-xs mt-1" style={{ color: COLORS.sub }}>Requires urgent resolution</div>
+          </div>
+          <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+            <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Open & In Progress</div>
+            <div className="text-2xl font-bold mt-1" style={{ color: COLORS.amber }}>{openCount}</div>
+            <div className="text-xs mt-1" style={{ color: COLORS.sub }}>Active investigation</div>
+          </div>
+          <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+            <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Resolved / Closed</div>
+            <div className="text-2xl font-bold mt-1" style={{ color: COLORS.green }}>{closedCount}</div>
+            <div className="text-xs mt-1" style={{ color: COLORS.sub }}>Verified fixes</div>
+          </div>
         </div>
-        <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
-          <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Open & In Progress</div>
-          <div className="text-2xl font-bold mt-1" style={{ color: COLORS.amber }}>{openCount}</div>
-          <div className="text-xs mt-1" style={{ color: COLORS.sub }}>Active investigation</div>
-        </div>
-        <div className="rounded-xl p-4 shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
-          <div className="text-[11px] uppercase tracking-wider font-medium" style={{ color: COLORS.sub }}>Resolved / Closed</div>
-          <div className="text-2xl font-bold mt-1" style={{ color: COLORS.green }}>{closedCount}</div>
-          <div className="text-xs mt-1" style={{ color: COLORS.sub }}>Verified fixes</div>
-        </div>
+
+        {/* Dynamic KPI Graphs Section (Live to Filters & Date) */}
+        {showKpiCharts && (
+          <div
+            className="p-4 rounded-xl shadow-xs border bg-white grid grid-cols-1 md:grid-cols-3 gap-4"
+            style={{ borderColor: COLORS.border }}
+          >
+            {/* Severity Breakdown Bar */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70">
+              <span className="text-xs font-semibold text-slate-800 block mb-1">Severity Breakdown</span>
+              <div style={{ height: 140 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={kpiSeverityData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                    <XAxis dataKey="name" fontSize={10} tickLine={false} stroke={COLORS.sub} />
+                    <YAxis fontSize={10} tickLine={false} stroke={COLORS.sub} />
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+                    <Bar dataKey="count" fill={COLORS.accent} radius={[4, 4, 0, 0]}>
+                      {kpiSeverityData.map((entry) => (
+                        <Cell key={entry.name} fill={SEV_COLOR[entry.name] || COLORS.accent} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Status Distribution Pie */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 flex flex-col items-center">
+              <span className="text-xs font-semibold text-slate-800 block mb-1 self-start">Status Distribution</span>
+              <div style={{ height: 115, width: "100%" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={kpiStatusData} cx="50%" cy="50%" innerRadius={30} outerRadius={50} dataKey="count">
+                      {kpiStatusData.map((entry) => (
+                        <Cell key={entry.name} fill={STATUS_COLOR[entry.name] || COLORS.sub} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2 text-[10px] text-slate-600 mt-1">
+                {kpiStatusData.map((entry) => (
+                  <span key={entry.name} className="flex items-center gap-1 font-medium">
+                    <span className="w-2 h-2 rounded-full" style={{ background: STATUS_COLOR[entry.name] || COLORS.sub }} />
+                    {entry.name}: {entry.count}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Top Modules in Scope */}
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70">
+              <span className="text-xs font-semibold text-slate-800 block mb-2">Top Affected Modules</span>
+              <div className="space-y-1.5 text-xs">
+                {kpiModuleData.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 py-4 text-center">No modules found in filter scope</p>
+                ) : (
+                  kpiModuleData.map((m) => (
+                    <div key={m.module} className="flex items-center justify-between text-[11px]">
+                      <span className="truncate max-w-[150px] font-medium text-slate-700">{m.module}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 font-bold text-indigo-700">
+                        {m.count}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Primary Filter and Action Bar */}
@@ -758,6 +939,66 @@ export function Defects() {
                 </option>
               ))}
             </select>
+
+            {/* Filter by Date */}
+            <div className="flex items-center gap-1">
+              <Calendar size={13} color={COLORS.sub} />
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer font-medium"
+                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+                title="Filter Defects by Date Range"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last7">Last 7 Days</option>
+                <option value="last30">Last 30 Days</option>
+                <option value="this_month">This Month</option>
+                <option value="custom">Custom Range...</option>
+              </select>
+            </div>
+
+            {dateFilter === "custom" && (
+              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-500 font-medium">From:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded outline-none"
+                />
+                <span className="text-[10px] text-slate-500 font-medium">To:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded outline-none"
+                />
+              </div>
+            )}
+
+            {(selectedProject !== "All" || (selectedClient !== "All" && !isClient) || modFilter !== "All" || sevFilter !== "All" || statusFilter !== "All" || dateFilter !== "all" || q.trim() !== "") && (
+              <button
+                onClick={() => {
+                  if (!isClient) setSelectedClient("All");
+                  setSelectedProject("All");
+                  setModFilter("All");
+                  setSevFilter("All");
+                  setStatusFilter("All");
+                  setDateFilter("all");
+                  setCustomStartDate("");
+                  setCustomEndDate("");
+                  setQ("");
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Reset all filters to default"
+              >
+                <RotateCcw size={12} />
+                <span>Reset</span>
+              </button>
+            )}
 
             <span className="text-xs ml-2" style={{ color: COLORS.sub }}>
               Showing <b>{filtered.length}</b> of <b>{accessibleDefects.length}</b> visible defects
