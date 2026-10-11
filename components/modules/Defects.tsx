@@ -940,41 +940,41 @@ export function Defects() {
               ))}
             </select>
 
-            {/* Filter by Date */}
-            <div className="flex items-center gap-1">
-              <Calendar size={13} color={COLORS.sub} />
+            {/* Prominent Filter by Date Pill */}
+            <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg">
+              <Calendar size={13} className="text-indigo-600 shrink-0" />
+              <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">Filter by Date:</span>
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer font-medium"
-                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
-                title="Filter Defects by Date Range"
+                className="bg-transparent text-xs font-semibold text-indigo-900 outline-none cursor-pointer pr-1"
+                title="Filter Defects by Date"
               >
-                <option value="all">All Dates</option>
+                <option value="all">All Dates (Any Time)</option>
                 <option value="today">Today</option>
                 <option value="yesterday">Yesterday</option>
                 <option value="last7">Last 7 Days</option>
                 <option value="last30">Last 30 Days</option>
                 <option value="this_month">This Month</option>
-                <option value="custom">Custom Range...</option>
+                <option value="custom">Custom Date Range...</option>
               </select>
             </div>
 
             {dateFilter === "custom" && (
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 font-medium">From:</span>
+              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-indigo-300 shadow-xs">
+                <span className="text-[10px] text-slate-500 font-semibold">From:</span>
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded outline-none"
+                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
                 />
-                <span className="text-[10px] text-slate-500 font-medium">To:</span>
+                <span className="text-[10px] text-slate-500 font-semibold">To:</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded outline-none"
+                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
                 />
               </div>
             )}
@@ -1028,7 +1028,7 @@ export function Defects() {
         </div>
       </div>
 
-      {/* Defects Table with Full Hierarchy */}
+      {/* Defects Table with Full Hierarchy & Date */}
       <div
         className="rounded-xl overflow-hidden shadow-sm"
         style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
@@ -1052,13 +1052,14 @@ export function Defects() {
                 <th className="py-2.5 px-4 font-semibold">Title</th>
                 <th className="py-2.5 px-4 font-semibold">Status</th>
                 <th className="py-2.5 px-4 font-semibold">Assignee</th>
+                <th className="py-2.5 px-4 font-semibold">Created Date</th>
                 <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={isClient ? 9 : 10} className="py-12 text-center text-xs" style={{ color: COLORS.sub }}>
+                  <td colSpan={isClient ? 10 : 11} className="py-12 text-center text-xs" style={{ color: COLORS.sub }}>
                     No defects matching the selected filters.
                   </td>
                 </tr>
@@ -1116,6 +1117,9 @@ export function Defects() {
                     </td>
                     <td className="py-2.5 px-4 font-medium" style={{ color: COLORS.ink }}>
                       {d.assignee || "Unassigned"}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">
+                      {d.created_at ? new Date(d.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent"}
                     </td>
                     <td className="py-2.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
