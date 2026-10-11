@@ -31,9 +31,12 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
+  Legend,
   XAxis,
   YAxis,
   CartesianGrid,
+  AreaChart,
+  Area,
 } from "recharts";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -139,7 +142,7 @@ export function Defects() {
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
-  const [showKpiCharts, setShowKpiCharts] = useState<boolean>(false);
+  const [showKpiCharts, setShowKpiCharts] = useState<boolean>(true);
 
   // Keep client locked for Client user
   useEffect(() => {
@@ -220,42 +223,40 @@ export function Defects() {
 
       // Date Filter
       if (dateFilter !== "all") {
-        if (d.created_at) {
-          const dDate = new Date(d.created_at);
-          if (!isNaN(dDate.getTime())) {
-            const now = new Date();
-            if (dateFilter === "today") {
-              if (
-                dDate.getFullYear() !== now.getFullYear() ||
-                dDate.getMonth() !== now.getMonth() ||
-                dDate.getDate() !== now.getDate()
-              ) return false;
-            } else if (dateFilter === "yesterday") {
-              const yest = new Date(now);
-              yest.setDate(now.getDate() - 1);
-              if (
-                dDate.getFullYear() !== yest.getFullYear() ||
-                dDate.getMonth() !== yest.getMonth() ||
-                dDate.getDate() !== yest.getDate()
-              ) return false;
-            } else if (dateFilter === "last7") {
-              const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-              if (dDate < sevenDaysAgo) return false;
-            } else if (dateFilter === "last30") {
-              const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-              if (dDate < thirtyDaysAgo) return false;
-            } else if (dateFilter === "this_month") {
-              if (dDate.getFullYear() !== now.getFullYear() || dDate.getMonth() !== now.getMonth()) return false;
-            } else if (dateFilter === "custom") {
-              if (customStartDate) {
-                const start = new Date(customStartDate + "T00:00:00");
-                if (dDate < start) return false;
-              }
-              if (customEndDate) {
-                const end = new Date(customEndDate + "T23:59:59");
-                if (dDate > end) return false;
-              }
-            }
+        if (!d.created_at) return false;
+        const dDate = new Date(d.created_at);
+        if (isNaN(dDate.getTime())) return false;
+        const now = new Date();
+        if (dateFilter === "today") {
+          if (
+            dDate.getFullYear() !== now.getFullYear() ||
+            dDate.getMonth() !== now.getMonth() ||
+            dDate.getDate() !== now.getDate()
+          ) return false;
+        } else if (dateFilter === "yesterday") {
+          const yest = new Date(now);
+          yest.setDate(now.getDate() - 1);
+          if (
+            dDate.getFullYear() !== yest.getFullYear() ||
+            dDate.getMonth() !== yest.getMonth() ||
+            dDate.getDate() !== yest.getDate()
+          ) return false;
+        } else if (dateFilter === "last7") {
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (dDate < sevenDaysAgo) return false;
+        } else if (dateFilter === "last30") {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          if (dDate < thirtyDaysAgo) return false;
+        } else if (dateFilter === "this_month") {
+          if (dDate.getFullYear() !== now.getFullYear() || dDate.getMonth() !== now.getMonth()) return false;
+        } else if (dateFilter === "custom") {
+          if (customStartDate) {
+            const start = new Date(customStartDate + "T00:00:00");
+            if (dDate < start) return false;
+          }
+          if (customEndDate) {
+            const end = new Date(customEndDate + "T23:59:59");
+            if (dDate > end) return false;
           }
         }
       }
@@ -307,6 +308,29 @@ export function Defects() {
       .map(([module, count]) => ({ module, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
+  }, [filtered]);
+
+  // Dynamic Trend & Velocity Over Time for KPI Graph
+  const kpiTrendData = useMemo(() => {
+    const dateMap: Record<string, { date: string; open: number; closed: number; total: number; timestamp: number }> = {};
+    filtered.forEach((d) => {
+      const raw = d.created_at ? new Date(d.created_at) : new Date();
+      const key = !isNaN(raw.getTime())
+        ? raw.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        : "Recent";
+      const ts = !isNaN(raw.getTime()) ? new Date(raw.getFullYear(), raw.getMonth(), raw.getDate()).getTime() : 0;
+      if (!dateMap[key]) {
+        dateMap[key] = { date: key, open: 0, closed: 0, total: 0, timestamp: ts };
+      }
+      dateMap[key].total += 1;
+      if (d.status === "Closed") {
+        dateMap[key].closed += 1;
+      } else {
+        dateMap[key].open += 1;
+      }
+    });
+    const list = Object.values(dateMap).sort((a, b) => a.timestamp - b.timestamp);
+    return list.length > 0 ? list : [{ date: "Current", open: 0, closed: 0, total: 0, timestamp: 0 }];
   }, [filtered]);
 
   // Modals
@@ -726,73 +750,134 @@ export function Defects() {
           </div>
         </div>
 
-        {/* Dynamic KPI Graphs Section (Live to Filters & Date) */}
+        {/* Dynamic KPI Graphs Section (Live to Filters & Date directly in Defects) */}
         {showKpiCharts && (
           <div
-            className="p-4 rounded-xl shadow-xs border bg-white grid grid-cols-1 md:grid-cols-3 gap-4"
+            className="p-4 rounded-xl shadow-xs border bg-white space-y-4"
             style={{ borderColor: COLORS.border }}
           >
-            {/* Severity Breakdown Bar */}
-            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70">
-              <span className="text-xs font-semibold text-slate-800 block mb-1">Severity Breakdown</span>
-              <div style={{ height: 140 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={kpiSeverityData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
-                    <XAxis dataKey="name" fontSize={10} tickLine={false} stroke={COLORS.sub} />
-                    <YAxis fontSize={10} tickLine={false} stroke={COLORS.sub} />
-                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
-                    <Bar dataKey="count" fill={COLORS.accent} radius={[4, 4, 0, 0]}>
-                      {kpiSeverityData.map((entry) => (
-                        <Cell key={entry.name} fill={SEV_COLOR[entry.name] || COLORS.accent} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Status Distribution Pie */}
-            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 flex flex-col items-center">
-              <span className="text-xs font-semibold text-slate-800 block mb-1 self-start">Status Distribution</span>
-              <div style={{ height: 115, width: "100%" }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={kpiStatusData} cx="50%" cy="50%" innerRadius={30} outerRadius={50} dataKey="count">
-                      {kpiStatusData.map((entry) => (
-                        <Cell key={entry.name} fill={STATUS_COLOR[entry.name] || COLORS.sub} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2 text-[10px] text-slate-600 mt-1">
-                {kpiStatusData.map((entry) => (
-                  <span key={entry.name} className="flex items-center gap-1 font-medium">
-                    <span className="w-2 h-2 rounded-full" style={{ background: STATUS_COLOR[entry.name] || COLORS.sub }} />
-                    {entry.name}: {entry.count}
+            {/* Top Row: Defect Velocity & Trend (KPI Graph) */}
+            <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/70">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp size={15} className="text-indigo-600" />
+                  <span className="text-xs font-bold text-slate-800">
+                    Defect Velocity & Trend (Dynamic KPI Graph)
                   </span>
-                ))}
+                </div>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">
+                  {filtered.length} Bugs in Filter Scope
+                </span>
+              </div>
+              <div style={{ height: 200 }}>
+                {kpiTrendData.length === 0 || filtered.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No defects recorded in this filter/date scope.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={kpiTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorDefectsTotal" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.accent} stopOpacity={0.7} />
+                          <stop offset="95%" stopColor={COLORS.accent} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorDefectsClosed" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.7} />
+                          <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                      <XAxis dataKey="date" fontSize={10} tickLine={false} stroke={COLORS.sub} />
+                      <YAxis fontSize={10} tickLine={false} stroke={COLORS.sub} />
+                      <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        name="Logged"
+                        stroke={COLORS.accent}
+                        fillOpacity={1}
+                        fill="url(#colorDefectsTotal)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="closed"
+                        name="Resolved"
+                        stroke={COLORS.green}
+                        fillOpacity={1}
+                        fill="url(#colorDefectsClosed)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
 
-            {/* Top Modules in Scope */}
-            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70">
-              <span className="text-xs font-semibold text-slate-800 block mb-2">Top Affected Modules</span>
-              <div className="space-y-1.5 text-xs">
-                {kpiModuleData.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 py-4 text-center">No modules found in filter scope</p>
-                ) : (
-                  kpiModuleData.map((m) => (
-                    <div key={m.module} className="flex items-center justify-between text-[11px]">
-                      <span className="truncate max-w-[150px] font-medium text-slate-700">{m.module}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 font-bold text-indigo-700">
-                        {m.count}
-                      </span>
-                    </div>
-                  ))
-                )}
+            {/* Bottom Row: 3 columns (Severity Breakdown, Status Distribution, Top Modules) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Severity Breakdown Bar */}
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70">
+                <span className="text-xs font-semibold text-slate-800 block mb-1">Severity Breakdown</span>
+                <div style={{ height: 130 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={kpiSeverityData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.border} />
+                      <XAxis dataKey="name" fontSize={10} tickLine={false} stroke={COLORS.sub} />
+                      <YAxis fontSize={10} tickLine={false} stroke={COLORS.sub} />
+                      <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+                      <Bar dataKey="count" fill={COLORS.accent} radius={[4, 4, 0, 0]}>
+                        {kpiSeverityData.map((entry) => (
+                          <Cell key={entry.name} fill={SEV_COLOR[entry.name] || COLORS.accent} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Status Distribution Pie */}
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70 flex flex-col items-center">
+                <span className="text-xs font-semibold text-slate-800 block mb-1 self-start">Status Distribution</span>
+                <div style={{ height: 105, width: "100%" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={kpiStatusData} cx="50%" cy="50%" innerRadius={28} outerRadius={48} dataKey="count">
+                        {kpiStatusData.map((entry) => (
+                          <Cell key={entry.name} fill={STATUS_COLOR[entry.name] || COLORS.sub} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 text-[10px] text-slate-600 mt-1">
+                  {kpiStatusData.map((entry) => (
+                    <span key={entry.name} className="flex items-center gap-1 font-medium">
+                      <span className="w-2 h-2 rounded-full" style={{ background: STATUS_COLOR[entry.name] || COLORS.sub }} />
+                      {entry.name}: {entry.count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top Modules in Scope */}
+              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/70">
+                <span className="text-xs font-semibold text-slate-800 block mb-2">Top Affected Modules</span>
+                <div className="space-y-1.5 text-xs">
+                  {kpiModuleData.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 py-4 text-center">No modules found in filter scope</p>
+                  ) : (
+                    kpiModuleData.map((m) => (
+                      <div key={m.module} className="flex items-center justify-between text-[11px]">
+                        <span className="truncate max-w-[150px] font-medium text-slate-700">{m.module}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 font-bold text-indigo-700">
+                          {m.count}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -882,6 +967,45 @@ export function Defects() {
                 ))}
               </select>
             </div>
+
+            {/* Prominent Filter by Date Control - In Primary Controls Bar */}
+            <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-lg shadow-2xs">
+              <Calendar size={13} className="text-indigo-600 shrink-0" />
+              <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">Filter by Date:</span>
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="bg-transparent text-xs font-bold text-indigo-900 outline-none cursor-pointer pr-1"
+                title="Filter Defects by Date Range"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last7">Last 7 Days</option>
+                <option value="last30">Last 30 Days</option>
+                <option value="this_month">This Month</option>
+                <option value="custom">Custom Range...</option>
+              </select>
+            </div>
+
+            {dateFilter === "custom" && (
+              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-indigo-300 shadow-xs">
+                <span className="text-[10px] text-slate-500 font-semibold">From:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
+                />
+                <span className="text-[10px] text-slate-500 font-semibold">To:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
+                />
+              </div>
+            )}
           </div>
 
           {/* Action Buttons: Log Defect & Hierarchy Settings */}
@@ -939,45 +1063,6 @@ export function Defects() {
                 </option>
               ))}
             </select>
-
-            {/* Prominent Filter by Date Pill */}
-            <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg">
-              <Calendar size={13} className="text-indigo-600 shrink-0" />
-              <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">Filter by Date:</span>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-indigo-900 outline-none cursor-pointer pr-1"
-                title="Filter Defects by Date"
-              >
-                <option value="all">All Dates (Any Time)</option>
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="last7">Last 7 Days</option>
-                <option value="last30">Last 30 Days</option>
-                <option value="this_month">This Month</option>
-                <option value="custom">Custom Date Range...</option>
-              </select>
-            </div>
-
-            {dateFilter === "custom" && (
-              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-indigo-300 shadow-xs">
-                <span className="text-[10px] text-slate-500 font-semibold">From:</span>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
-                />
-                <span className="text-[10px] text-slate-500 font-semibold">To:</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
-                />
-              </div>
-            )}
 
             {(selectedProject !== "All" || (selectedClient !== "All" && !isClient) || modFilter !== "All" || sevFilter !== "All" || statusFilter !== "All" || dateFilter !== "all" || q.trim() !== "") && (
               <button
