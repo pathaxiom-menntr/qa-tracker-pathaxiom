@@ -1409,6 +1409,7 @@ export function Defects() {
 }
 
 // Sub-component for managing Project Modules and Features
+// Sub-component for managing Project Modules and Features (Simple Single-Click Unified List)
 function ManageHierarchyModal({
   projects,
   onClose,
@@ -1422,44 +1423,73 @@ function ManageHierarchyModal({
   const activeProj = projects.find((p) => p.id === selectedProjectId) || projects[0];
 
   const [newModName, setNewModName] = useState("");
-  const [selectedModForFeat, setSelectedModForFeat] = useState("");
-  const [newFeatName, setNewFeatName] = useState("");
+  const [featInputs, setFeatInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (activeProj && activeProj.modules.length > 0) {
-      setSelectedModForFeat(activeProj.modules[0]);
-    }
-  }, [activeProj]);
-
+  // Add a new Module
   const handleAddModule = async () => {
     if (!newModName.trim() || !activeProj) return;
+    const mod = newModName.trim();
     setSaving(true);
     try {
-      const mod = newModName.trim();
       const updatedModules = Array.from(new Set([...activeProj.modules, mod]));
-      const updatedFeatures = { ...activeProj.features, [mod]: ["General"] };
+      const updatedFeatures = {
+        ...activeProj.features,
+        [mod]: activeProj.features?.[mod] && activeProj.features[mod].length > 0 ? activeProj.features[mod] : ["General"],
+      };
       await onUpdateProject(activeProj.id, {
         modules: updatedModules,
         features: updatedFeatures,
       });
       setNewModName("");
-      setSelectedModForFeat(mod);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAddFeature = async () => {
-    if (!newFeatName.trim() || !selectedModForFeat || !activeProj) return;
+  // Delete an entire Module
+  const handleDeleteModule = async (modToDelete: string) => {
+    if (!activeProj) return;
+    if (!confirm(`Are you sure you want to delete module "${modToDelete}" and its features?`)) return;
     setSaving(true);
     try {
-      const feat = newFeatName.trim();
-      const current = activeProj.features[selectedModForFeat] || [];
-      const updatedFeats = Array.from(new Set([...current, feat]));
-      const updatedFeatures = { ...activeProj.features, [selectedModForFeat]: updatedFeats };
+      const updatedModules = activeProj.modules.filter((m) => m !== modToDelete);
+      const updatedFeatures = { ...activeProj.features };
+      delete updatedFeatures[modToDelete];
+      await onUpdateProject(activeProj.id, {
+        modules: updatedModules,
+        features: updatedFeatures,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Add Feature directly inside a Module
+  const handleAddFeatureToModule = async (mod: string) => {
+    const featVal = (featInputs[mod] || "").trim();
+    if (!featVal || !activeProj) return;
+    setSaving(true);
+    try {
+      const current = activeProj.features?.[mod] || [];
+      const updatedFeats = Array.from(new Set([...current, featVal]));
+      const updatedFeatures = { ...activeProj.features, [mod]: updatedFeats };
       await onUpdateProject(activeProj.id, { features: updatedFeatures });
-      setNewFeatName("");
+      setFeatInputs((prev) => ({ ...prev, [mod]: "" }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete a single Feature tag
+  const handleDeleteFeatureFromModule = async (mod: string, featToDelete: string) => {
+    if (!activeProj) return;
+    setSaving(true);
+    try {
+      const current = activeProj.features?.[mod] || [];
+      const updatedFeats = current.filter((f) => f !== featToDelete);
+      const updatedFeatures = { ...activeProj.features, [mod]: updatedFeats };
+      await onUpdateProject(activeProj.id, { features: updatedFeatures });
     } finally {
       setSaving(false);
     }
@@ -1472,29 +1502,36 @@ function ManageHierarchyModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-xl p-5 shadow-2xl max-h-[85vh] overflow-y-auto"
-        style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+        className="w-full max-w-2xl rounded-2xl p-6 shadow-2xl max-h-[85vh] flex flex-col bg-white border border-slate-200"
       >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Settings2 size={16} color={COLORS.accent} />
-            <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>
-              Project Hierarchy: Configure Modules & Features
-            </span>
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Layers size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Project Structure (Modules & Features)</h3>
+              <p className="text-[11px] text-slate-500">Add or remove modules and features directly in one simple list</p>
+            </div>
           </div>
-          <button onClick={onClose} style={{ color: COLORS.sub }}>
-            <X size={16} />
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <X size={18} />
           </button>
         </div>
 
         {/* Project Selector */}
-        <div className="mb-4">
-          <label className="text-xs font-medium block mb-1 text-slate-500">Select Project to Configure:</label>
+        <div className="pt-3 pb-2">
+          <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+            Active Project
+          </label>
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(parseInt(e.target.value, 10))}
-            className="w-full px-3 py-2 rounded-lg text-xs outline-none font-medium"
-            style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+            className="w-full px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
           >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
@@ -1504,96 +1541,137 @@ function ManageHierarchyModal({
           </select>
         </div>
 
+        {/* Single Quick-Add Bar for Modules */}
         {activeProj && (
-          <div className="space-y-4">
-            {/* Add New Module Section */}
-            <div className="p-3.5 rounded-lg border bg-slate-50 space-y-2">
-              <span className="text-xs font-semibold text-slate-800">Add Module / Category to {activeProj.name}</span>
-              <div className="flex gap-2">
+          <div className="pt-2 pb-3">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
                 <input
                   value={newModName}
                   onChange={(e) => setNewModName(e.target.value)}
-                  placeholder="e.g. Billing & Invoicing"
-                  className="flex-1 px-3 py-1.5 rounded-lg text-xs bg-white border outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddModule();
+                    }
+                  }}
+                  placeholder="Enter new module name (e.g. Billing) and press Enter..."
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 border border-slate-200 text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400"
                 />
-                <button
-                  type="button"
-                  disabled={saving || !newModName.trim()}
-                  onClick={handleAddModule}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  + Add Module
-                </button>
               </div>
-            </div>
-
-            {/* Add New Feature Section */}
-            <div className="p-3.5 rounded-lg border bg-slate-50 space-y-2">
-              <span className="text-xs font-semibold text-slate-800">Add Feature under Module</span>
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={selectedModForFeat}
-                  onChange={(e) => setSelectedModForFeat(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs bg-white border outline-none"
-                >
-                  {activeProj.modules.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <div className="flex gap-2">
-                  <input
-                    value={newFeatName}
-                    onChange={(e) => setNewFeatName(e.target.value)}
-                    placeholder="e.g. Stripe Webhook Listener"
-                    className="flex-1 px-3 py-1.5 rounded-lg text-xs bg-white border outline-none"
-                  />
-                  <button
-                    type="button"
-                    disabled={saving || !newFeatName.trim()}
-                    onClick={handleAddFeature}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    + Add Feature
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Current Hierarchy Display */}
-            <div>
-              <span className="text-xs font-semibold text-slate-800 block mb-2">
-                Current Modules & Features for {activeProj.name}:
-              </span>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {activeProj.modules.map((m) => (
-                  <div key={m} className="p-2.5 rounded-lg border bg-white">
-                    <div className="flex items-center gap-1.5 font-medium text-xs text-indigo-700">
-                      <Layers size={13} />
-                      {m}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5 pl-4">
-                      {((activeProj.features && activeProj.features[m]) || ["General"]).map((f) => (
-                        <span
-                          key={f}
-                          className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 border"
-                        >
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <button
+                type="button"
+                disabled={saving || !newModName.trim()}
+                onClick={handleAddModule}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />}
+                Add Module
+              </button>
             </div>
           </div>
         )}
 
-        <div className="flex justify-end pt-3 mt-4 border-t">
+        {/* Scrollable Single-Click Module & Feature List */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-2.5 min-h-0">
+          {!activeProj || activeProj.modules.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              <Layers size={24} className="mx-auto text-slate-300 mb-1" />
+              <p className="text-xs font-medium text-slate-500">No modules in this project yet.</p>
+              <p className="text-[11px] text-slate-400">Type a module name above and click "Add Module".</p>
+            </div>
+          ) : (
+            activeProj.modules.map((m) => {
+              const feats = (activeProj.features && activeProj.features[m]) || ["General"];
+              const currentInput = featInputs[m] || "";
+
+              return (
+                <div
+                  key={m}
+                  className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-xs"
+                >
+                  {/* Module Header Row */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">
+                        📁
+                      </span>
+                      <span className="font-bold text-xs text-slate-900">{m}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        ({feats.length} {feats.length === 1 ? "feature" : "features"})
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteModule(m)}
+                      title={`Delete module "${m}"`}
+                      className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+
+                  {/* Feature Tags & Direct Inline Quick-Add */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100">
+                    {feats.map((f) => (
+                      <span
+                        key={f}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/80 hover:bg-slate-200/80 transition-colors"
+                      >
+                        <span>{f}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFeatureFromModule(m, f)}
+                          title={`Remove feature "${f}"`}
+                          className="text-slate-400 hover:text-red-500 rounded p-0.5 cursor-pointer"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+
+                    {/* Inline Feature Input */}
+                    <div className="inline-flex items-center gap-1">
+                      <input
+                        value={currentInput}
+                        onChange={(e) => setFeatInputs((prev) => ({ ...prev, [m]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddFeatureToModule(m);
+                          }
+                        }}
+                        placeholder="+ Add feature (Press Enter)..."
+                        className="px-2.5 py-1 rounded-md text-[11px] bg-slate-50 border border-dashed border-slate-300 outline-none focus:bg-white focus:border-indigo-500 focus:border-solid w-44 placeholder:text-slate-400 transition-all"
+                      />
+                      {currentInput.trim() && (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => handleAddFeatureToModule(m)}
+                          className="px-1.5 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-[10px] font-medium shadow-xs cursor-pointer"
+                          title="Add feature"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-100">
+          <span className="text-[11px] text-slate-400">
+            💡 Type inside any module and press <b>Enter</b> to add features instantly.
+          </span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700"
+            className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer"
           >
             Done
           </button>
