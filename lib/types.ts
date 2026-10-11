@@ -94,6 +94,11 @@ export interface PerfEndpoint {
   err: number;
   max: number;
   category?: string;
+  name?: string;
+  load?: string;
+  status?: string;
+  notes?: string;
+  date?: string;
 }
 
 export interface ReportEntry {
