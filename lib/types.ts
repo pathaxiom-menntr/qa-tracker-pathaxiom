@@ -14,6 +14,7 @@ export interface User {
   status: "active" | "deactivated";
   client_name?: string;
   assigned_projects?: string[];
+  permissions?: string[];
   createdAt: string;
   createdBy?: string;
 }

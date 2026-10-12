@@ -16,8 +16,12 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  Info,
-  Lock,
+  Bug,
+  FileText,
+  FolderGit2,
+  ListChecks,
+  Activity,
+  CheckCircle2,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Role, User } from "@/lib/types";
@@ -54,6 +58,136 @@ const ROLE_COLORS: Record<Role, string> = {
   "QA Lead": COLORS.sky,
   "QA Engineer": COLORS.green,
   Client: COLORS.amber,
+};
+
+export interface PermissionItem {
+  id: string;
+  label: string;
+  desc: string;
+}
+
+export interface PermissionGroup {
+  category: string;
+  description: string;
+  icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
+  permissions: PermissionItem[];
+}
+
+export const PERMISSION_GROUPS: PermissionGroup[] = [
+  {
+    category: "Defects & Bug Tracking",
+    description: "Manage bug life-cycle, severity, and resolution",
+    icon: Bug,
+    permissions: [
+      { id: "defects:view", label: "View Defects", desc: "Browse, filter, and inspect bug listings" },
+      { id: "defects:create", label: "Log Defects", desc: "Report and file new defects in the tracker" },
+      { id: "defects:edit", label: "Edit Defects", desc: "Modify bug details, assignees, and statuses" },
+      { id: "defects:delete", label: "Delete Defects", desc: "Remove defect entries from PostgreSQL" },
+    ],
+  },
+  {
+    category: "Reports & Downloads",
+    description: "Generate and export QA documentation",
+    icon: FileText,
+    permissions: [
+      { id: "reports:download", label: "Download Reports", desc: "Download Excel (.xlsx) and PDF bug reports" },
+      { id: "reports:upload", label: "Upload & Save Reports", desc: "Publish and archive QA test run reports" },
+    ],
+  },
+  {
+    category: "Projects & Structure",
+    description: "Manage project modules and sub-features",
+    icon: FolderGit2,
+    permissions: [
+      { id: "projects:manage", label: "Manage Hierarchy", desc: "Configure project categories, modules & features" },
+    ],
+  },
+  {
+    category: "Test Cases & Portals",
+    description: "Test execution coverage and portal banks",
+    icon: ListChecks,
+    permissions: [
+      { id: "testcases:view", label: "View Test Cases", desc: "Inspect test case banks and execution numbers" },
+      { id: "testcases:manage", label: "Manage Test Cases", desc: "Add or update test suites across portals" },
+    ],
+  },
+  {
+    category: "Specialized QA Testing",
+    description: "Performance, security, and compatibility monitoring",
+    icon: Activity,
+    permissions: [
+      { id: "performance:access", label: "Performance Monitoring", desc: "Access latency metrics & log performance reports" },
+      { id: "vapt:access", label: "Security (VAPT) Findings", desc: "View security vulnerability reports & remediation" },
+      { id: "browsers:access", label: "Browser Compatibility", desc: "View cross-browser and platform parity matrix" },
+    ],
+  },
+  {
+    category: "User Administration",
+    description: "Manage accounts and credential provisioning",
+    icon: Shield,
+    permissions: [
+      { id: "users:manage", label: "Manage Users", desc: "Provision, edit, and deactivate user accounts" },
+    ],
+  },
+];
+
+export const PERMISSION_LABELS: Record<string, string> = {
+  "defects:view": "View Bugs",
+  "defects:create": "Log Bugs",
+  "defects:edit": "Edit Bugs",
+  "defects:delete": "Delete Bugs",
+  "reports:download": "Download Reports",
+  "reports:upload": "Upload Reports",
+  "projects:manage": "Manage Structure",
+  "testcases:view": "View Test Cases",
+  "testcases:manage": "Manage Test Cases",
+  "performance:access": "Performance",
+  "vapt:access": "VAPT Security",
+  "browsers:access": "Browsers",
+  "users:manage": "Manage Users",
+};
+
+export const DEFAULT_ROLE_PERMISSIONS: Record<Role, string[]> = {
+  "Super Admin": [
+    "defects:view", "defects:create", "defects:edit", "defects:delete",
+    "reports:download", "reports:upload",
+    "projects:manage",
+    "testcases:view", "testcases:manage",
+    "performance:access", "vapt:access", "browsers:access",
+    "users:manage",
+  ],
+  Admin: [
+    "defects:view", "defects:create", "defects:edit", "defects:delete",
+    "reports:download", "reports:upload",
+    "projects:manage",
+    "testcases:view", "testcases:manage",
+    "performance:access", "vapt:access", "browsers:access",
+    "users:manage",
+  ],
+  "QA Manager": [
+    "defects:view", "defects:create", "defects:edit", "defects:delete",
+    "reports:download", "reports:upload",
+    "projects:manage",
+    "testcases:view", "testcases:manage",
+    "performance:access", "vapt:access", "browsers:access",
+  ],
+  "QA Lead": [
+    "defects:view", "defects:create", "defects:edit",
+    "reports:download", "reports:upload",
+    "projects:manage",
+    "testcases:view", "testcases:manage",
+    "performance:access", "browsers:access",
+  ],
+  "QA Engineer": [
+    "defects:view", "defects:create", "defects:edit",
+    "reports:download",
+    "testcases:view",
+    "browsers:access",
+  ],
+  Client: [
+    "defects:view",
+    "reports:download",
+  ],
 };
 
 function StatCard({
@@ -153,15 +287,15 @@ export function UserManagement() {
           <span>
             {isSuperAdmin ? (
               <>
-                Logged in as <b>Super Admin</b>: You have full authority to add and provision credentials for <b>Admins</b>, <b>QA Team</b>, and <b>Clients</b>.
+                Logged in as <b>Super Admin</b>: You have full authority to provision credentials, assign roles, and define <b>custom permissions</b> for all users.
               </>
             ) : isAdmin ? (
               <>
-                Logged in as <b>Admin</b>: You have authorization to add and manage credentials for <b>QA Managers</b>, <b>QA Leads</b>, <b>QA Engineers</b>, and <b>Clients</b>.
+                Logged in as <b>Admin</b>: You have authorization to manage credentials and customize <b>permissions</b> for QA Managers, QA Leads, QA Engineers, and Clients.
               </>
             ) : (
               <>
-                Logged in as <b>{currentUser?.role}</b>: User account provisioning is restricted to Super Admin and Admin roles.
+                Logged in as <b>{currentUser?.role}</b>: User account provisioning and permission configuration is restricted to Super Admin and Admin roles.
               </>
             )}
           </span>
@@ -229,7 +363,7 @@ export function UserManagement() {
               style={{ color: COLORS.ink }}
             />
             {search && (
-              <button onClick={() => setSearch("")}>
+              <button onClick={() => setSearch("")} className="cursor-pointer">
                 <X size={13} color={COLORS.sub} />
               </button>
             )}
@@ -275,7 +409,7 @@ export function UserManagement() {
         {canCreateUsers && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
             style={{ background: isSuperAdmin ? COLORS.accent : COLORS.accent2 }}
           >
             <UserPlus size={15} />
@@ -302,6 +436,7 @@ export function UserManagement() {
                 <th className="py-3 px-4 font-semibold">User</th>
                 <th className="py-3 px-4 font-semibold">Role</th>
                 <th className="py-3 px-4 font-semibold">Status</th>
+                <th className="py-3 px-4 font-semibold">Permissions / Privileges</th>
                 <th className="py-3 px-4 font-semibold">Created Date</th>
                 <th className="py-3 px-4 font-semibold text-right">Actions</th>
               </tr>
@@ -309,7 +444,7 @@ export function UserManagement() {
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-xs" style={{ color: COLORS.sub }}>
+                  <td colSpan={6} className="py-8 text-center text-xs" style={{ color: COLORS.sub }}>
                     No users matching criteria.
                   </td>
                 </tr>
@@ -325,6 +460,11 @@ export function UserManagement() {
                     .slice(0, 2)
                     .join("")
                     .toUpperCase();
+
+                  const userPerms =
+                    u.permissions && u.permissions.length > 0
+                      ? u.permissions
+                      : DEFAULT_ROLE_PERMISSIONS[u.role] || [];
 
                   return (
                     <tr
@@ -389,6 +529,33 @@ export function UserManagement() {
                           {u.status === "active" ? "Active" : "Deactivated"}
                         </span>
                       </td>
+
+                      {/* Permissions Column */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-wrap items-center gap-1 max-w-xs">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {userPerms.length} {userPerms.length === 1 ? "Privilege" : "Privileges"}
+                          </span>
+                          {userPerms.slice(0, 3).map((p) => {
+                            const label = PERMISSION_LABELS[p] || p.split(":")[1] || p;
+                            return (
+                              <span
+                                key={p}
+                                className="px-1.5 py-0.5 rounded text-[9px] bg-slate-100 text-slate-600 font-medium truncate max-w-[85px]"
+                                title={label}
+                              >
+                                {label}
+                              </span>
+                            );
+                          })}
+                          {userPerms.length > 3 && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              +{userPerms.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
                       <td className="py-3.5 px-4" style={{ color: COLORS.sub }}>
                         <div className="flex items-center gap-1">
                           <Calendar size={12} />
@@ -401,9 +568,9 @@ export function UserManagement() {
                             {/* Edit User Button */}
                             <button
                               onClick={() => setEditingUser(u)}
-                              className="p-1.5 rounded-md hover:bg-slate-100 transition-colors"
+                              className="p-1.5 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
                               style={{ color: COLORS.sub }}
-                              title="Edit user credentials / role"
+                              title="Edit user credentials, role & permissions"
                             >
                               <Edit2 size={14} />
                             </button>
@@ -412,7 +579,7 @@ export function UserManagement() {
                             <button
                               onClick={() => toggleUserStatus(u.id)}
                               disabled={isCurrent}
-                              className="px-2 py-1 rounded text-[11px] font-medium transition-colors border"
+                              className="px-2 py-1 rounded text-[11px] font-medium transition-colors border cursor-pointer"
                               style={{
                                 borderColor: COLORS.border,
                                 background: COLORS.panel2,
@@ -437,7 +604,7 @@ export function UserManagement() {
                                 }
                               }}
                               disabled={isCurrent}
-                              className="p-1.5 rounded-md hover:bg-red-50 transition-colors"
+                              className="p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
                               style={{
                                 color: isCurrent ? COLORS.sub : COLORS.red,
                                 opacity: isCurrent ? 0.3 : 1,
@@ -469,8 +636,8 @@ export function UserManagement() {
           title={isSuperAdmin ? "Add User (Super Admin)" : "Add User (Admin)"}
           subtitle={
             isSuperAdmin
-              ? "As Super Admin, provision credentials for Admins, QA Leads, QA Engineers, or Clients with a secure login password."
-              : "As Admin, provision credentials for a QA team member or Client with a secure login password."
+              ? "As Super Admin, provision credentials for Admins, QA Leads, QA Engineers, or Clients and define what they can do."
+              : "As Admin, provision credentials for a QA team member or Client and define what they can do."
           }
           submitLabel="Add User"
           availableRoles={creatableRoles}
@@ -481,10 +648,11 @@ export function UserManagement() {
             role: creatableRoles[0] || "Admin",
             password: "",
             client_name: "PathAxiom",
+            permissions: DEFAULT_ROLE_PERMISSIONS[creatableRoles[0] || "Admin"] || [],
           }}
           onClose={() => setShowAddModal(false)}
           onSubmit={async (data) => {
-            await addUser(data.name, data.email, data.role, data.password!, data.client_name);
+            await addUser(data.name, data.email, data.role, data.password!, data.client_name, undefined, data.permissions);
             setShowAddModal(false);
           }}
         />
@@ -493,8 +661,8 @@ export function UserManagement() {
       {/* Edit User Modal */}
       {editingUser && (
         <UserModal
-          title={`Edit User Credentials — ${editingUser.name}`}
-          subtitle="Update account details or reset user password in PostgreSQL."
+          title={`Edit User Credentials & Access — ${editingUser.name}`}
+          subtitle="Update account details, role permissions, or reset user password in PostgreSQL."
           submitLabel="Save Changes"
           availableRoles={editingUser.role === "Super Admin" ? ["Super Admin"] : creatableRoles}
           requirePassword={false}
@@ -504,10 +672,23 @@ export function UserManagement() {
             role: editingUser.role,
             password: "",
             client_name: editingUser.client_name || "PathAxiom",
+            permissions:
+              editingUser.permissions && editingUser.permissions.length > 0
+                ? editingUser.permissions
+                : DEFAULT_ROLE_PERMISSIONS[editingUser.role] || [],
           }}
           onClose={() => setEditingUser(null)}
           onSubmit={async (data) => {
-            await editUser(editingUser.id, data.name, data.email, data.role, data.password || undefined, data.client_name);
+            await editUser(
+              editingUser.id,
+              data.name,
+              data.email,
+              data.role,
+              data.password || undefined,
+              data.client_name,
+              undefined,
+              data.permissions
+            );
             setEditingUser(null);
           }}
         />
@@ -531,9 +712,23 @@ function UserModal({
   submitLabel: string;
   availableRoles: Role[];
   requirePassword: boolean;
-  initialData: { name: string; email: string; role: Role; password?: string; client_name?: string };
+  initialData: {
+    name: string;
+    email: string;
+    role: Role;
+    password?: string;
+    client_name?: string;
+    permissions?: string[];
+  };
   onClose: () => void;
-  onSubmit: (data: { name: string; email: string; role: Role; password?: string; client_name?: string }) => Promise<void>;
+  onSubmit: (data: {
+    name: string;
+    email: string;
+    role: Role;
+    password?: string;
+    client_name?: string;
+    permissions?: string[];
+  }) => Promise<void>;
 }) {
   const [name, setName] = useState(initialData.name);
   const [email, setEmail] = useState(initialData.email);
@@ -541,8 +736,38 @@ function UserModal({
   const [clientName, setClientName] = useState(initialData.client_name || "PathAxiom");
   const [password, setPassword] = useState(initialData.password || "");
   const [showPassword, setShowPassword] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>(
+    initialData.permissions && initialData.permissions.length > 0
+      ? initialData.permissions
+      : DEFAULT_ROLE_PERMISSIONS[initialData.role] || []
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // When role changes, auto-suggest default permissions for that role
+  const handleRoleChange = (newRole: Role) => {
+    setRole(newRole);
+    setPermissions(DEFAULT_ROLE_PERMISSIONS[newRole] || []);
+  };
+
+  const handleTogglePermission = (id: string) => {
+    setPermissions((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const all = PERMISSION_GROUPS.flatMap((g) => g.permissions.map((p) => p.id));
+    setPermissions(Array.from(new Set(all)));
+  };
+
+  const handleClearAll = () => {
+    setPermissions([]);
+  };
+
+  const handleResetToRoleDefault = () => {
+    setPermissions(DEFAULT_ROLE_PERMISSIONS[role] || []);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -571,6 +796,7 @@ function UserModal({
         role,
         password: password.trim() || undefined,
         client_name: role === "Client" ? clientName.trim() : undefined,
+        permissions,
       });
     } catch (err: any) {
       setError(err.message || "Failed to save user credentials");
@@ -588,133 +814,134 @@ function UserModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl p-5 shadow-2xl"
+        className="w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
         style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
       >
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: COLORS.border }}>
           <div className="flex items-center gap-2">
-            <KeyRound size={17} color={COLORS.accent} />
-            <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>
-              {title}
-            </span>
+            <KeyRound size={19} color={COLORS.accent} />
+            <div>
+              <span className="text-sm font-bold block" style={{ color: COLORS.ink }}>
+                {title}
+              </span>
+              <span className="text-[11px] block" style={{ color: COLORS.sub }}>
+                {subtitle}
+              </span>
+            </div>
           </div>
-          <button onClick={onClose} disabled={busy} className="p-1 rounded hover:bg-slate-100">
+          <button onClick={onClose} disabled={busy} className="p-1 rounded hover:bg-slate-100 cursor-pointer">
             <X size={16} color={COLORS.sub} />
           </button>
         </div>
 
-        <p className="text-xs mb-4 leading-relaxed" style={{ color: COLORS.sub }}>
-          {subtitle}
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <div>
-            <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
-              Full Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Ramesh Kumar"
-              className="w-full px-3 py-2 rounded-lg text-xs outline-none"
-              style={{
-                background: COLORS.panel2,
-                border: `1px solid ${COLORS.border}`,
-                color: COLORS.ink,
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
-              Email Address <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. ramesh@menntr.com"
-              className="w-full px-3 py-2 rounded-lg text-xs outline-none"
-              style={{
-                background: COLORS.panel2,
-                border: `1px solid ${COLORS.border}`,
-                color: COLORS.ink,
-              }}
-            />
-          </div>
-
-          {/* Password field */}
-          <div>
-            <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
-              {requirePassword ? (
-                <>
-                  User Password <span className="text-red-500">*</span>
-                </>
-              ) : (
-                "Reset Password (Optional)"
-              )}
-            </label>
-            <div className="relative">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
+                Full Name <span className="text-red-500">*</span>
+              </label>
               <input
-                required={requirePassword}
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={
-                  requirePassword
-                    ? "Set password (min 6 characters)"
-                    : "Leave blank to keep existing password"
-                }
-                className="w-full pl-3 pr-9 py-2 rounded-lg text-xs outline-none"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Ramesh Kumar"
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none"
                 style={{
                   background: COLORS.panel2,
                   border: `1px solid ${COLORS.border}`,
                   color: COLORS.ink,
                 }}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200"
-                style={{ color: COLORS.sub }}
-              >
-                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
             </div>
-            <span className="text-[10px] mt-1 block" style={{ color: COLORS.sub }}>
-              {requirePassword
-                ? "This password will be securely hashed with bcrypt and saved to PostgreSQL."
-                : "Enter 6+ characters only if you wish to overwrite the current password."}
-            </span>
+
+            <div>
+              <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
+                Email Address <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. ramesh@menntr.com"
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none"
+                style={{
+                  background: COLORS.panel2,
+                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.ink,
+                }}
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
-              Assigned Role <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
-              className="w-full px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
-              style={{
-                background: COLORS.panel2,
-                border: `1px solid ${COLORS.border}`,
-                color: COLORS.ink,
-              }}
-            >
-              {availableRoles.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* Password field */}
+            <div>
+              <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
+                {requirePassword ? (
+                  <>
+                    User Password <span className="text-red-500">*</span>
+                  </>
+                ) : (
+                  "Reset Password (Optional)"
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  required={requirePassword}
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={
+                    requirePassword
+                      ? "Set password (min 6 characters)"
+                      : "Leave blank to keep existing password"
+                  }
+                  className="w-full pl-3 pr-9 py-2 rounded-lg text-xs outline-none"
+                  style={{
+                    background: COLORS.panel2,
+                    border: `1px solid ${COLORS.border}`,
+                    color: COLORS.ink,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                  style={{ color: COLORS.sub }}
+                >
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Assigned Role */}
+            <div>
+              <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
+                Assigned Role <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={role}
+                onChange={(e) => handleRoleChange(e.target.value as Role)}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
+                style={{
+                  background: COLORS.panel2,
+                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.ink,
+                }}
+              >
+                {availableRoles.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {role === "Client" && (
             <div>
-              <label className="text-xs block mb-1 font-medium" style={{ color: COLORS.sub }}>
+              <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
                 Client Organization / Company <span className="text-red-500">*</span>
               </label>
               <input
@@ -735,6 +962,102 @@ function UserModal({
             </div>
           )}
 
+          {/* Granular Permissions Section (What they can do) */}
+          <div className="pt-3 border-t" style={{ borderColor: COLORS.border }}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div>
+                <label className="text-xs font-bold block" style={{ color: COLORS.ink }}>
+                  Permissions & Capabilities (What this user can do)
+                </label>
+                <span className="text-[11px] text-slate-500">
+                  Provide custom module access and action permissions for this account.
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleResetToRoleDefault}
+                  className="px-2.5 py-1 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-200 cursor-pointer"
+                  title="Reset to recommended permissions for selected role"
+                >
+                  Default for {role}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="px-2 py-1 rounded text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  className="px-2 py-1 rounded text-[10px] font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+              {PERMISSION_GROUPS.map((group) => {
+                const GroupIcon = group.icon;
+                return (
+                  <div
+                    key={group.category}
+                    className="p-3 rounded-lg border bg-slate-50/70"
+                    style={{ borderColor: COLORS.border }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <GroupIcon size={14} className="text-indigo-600 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800">{group.category}</span>
+                      <span className="text-[10px] text-slate-400">({group.description})</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {group.permissions.map((perm) => {
+                        const checked = permissions.includes(perm.id);
+                        return (
+                          <label
+                            key={perm.id}
+                            className={`flex items-start gap-2.5 p-2 rounded-md border cursor-pointer transition-all ${
+                              checked
+                                ? "bg-white border-indigo-300 shadow-2xs"
+                                : "bg-white/60 border-slate-200 opacity-75 hover:opacity-100"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleTogglePermission(perm.id)}
+                              className="mt-0.5 accent-indigo-600 rounded cursor-pointer"
+                            />
+                            <div className="text-[11px] leading-tight select-none">
+                              <span className={`font-semibold block ${checked ? "text-indigo-950" : "text-slate-700"}`}>
+                                {perm.label}
+                              </span>
+                              <span className="text-[10px] text-slate-500 block mt-0.5">
+                                {perm.desc}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between text-[11px] mt-2 px-1">
+              <span className="text-indigo-700 font-semibold">
+                ✓ Granted: {permissions.length} of {PERMISSION_GROUPS.flatMap((g) => g.permissions).length} capabilities
+              </span>
+              <span className="text-slate-400">
+                Permissions are saved to PostgreSQL
+              </span>
+            </div>
+          </div>
+
           {error && (
             <div
               className="text-xs px-3 py-2 rounded-lg"
@@ -748,12 +1071,12 @@ function UserModal({
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: COLORS.border }}>
+          <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
             <button
               type="button"
               disabled={busy}
               onClick={onClose}
-              className="px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-100"
+              className="px-3.5 py-2 rounded-lg text-xs font-medium hover:bg-slate-100 cursor-pointer"
               style={{ color: COLORS.sub }}
             >
               Cancel
@@ -761,7 +1084,7 @@ function UserModal({
             <button
               type="submit"
               disabled={busy}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-sm transition-opacity"
+              className="px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-sm transition-opacity cursor-pointer hover:opacity-95"
               style={{
                 background: COLORS.accent,
                 opacity: busy ? 0.7 : 1,

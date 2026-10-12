@@ -5,8 +5,9 @@ import bcrypt from "bcryptjs";
 // GET /api/users - Fetch all users from PostgreSQL
 export async function GET() {
   try {
+    await execDb("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions jsonb DEFAULT '[]'::jsonb;").catch(() => {});
     const users = await queryDb(
-      `SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, created_at as "createdAt"
+      `SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, COALESCE(permissions, '[]'::jsonb) as permissions, created_at as "createdAt"
        FROM users
        ORDER BY id DESC`
     );
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
       password = "password123",
       client_name = null,
       assigned_projects = [],
+      permissions = [],
     } = body;
 
     // Strict Restriction: Super Admin is a single, predefined system role
@@ -56,10 +58,11 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const clientVal = client_name ? `'${client_name.replace(/'/g, "''")}'` : "NULL";
 
+    await execDb("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions jsonb DEFAULT '[]'::jsonb;").catch(() => {});
     const inserted = await queryDb(
-      `INSERT INTO users (name, email, password_hash, role, status, client_name, assigned_projects)
-       VALUES ('${cleanName.replace(/'/g, "''")}', '${cleanEmail.replace(/'/g, "''")}', '${hashedPassword}', '${role}', 'active', ${clientVal}, '${JSON.stringify(assigned_projects).replace(/'/g, "''")}'::jsonb)
-       RETURNING id, name, email, role, status, client_name, assigned_projects, created_at as "createdAt"`
+      `INSERT INTO users (name, email, password_hash, role, status, client_name, assigned_projects, permissions)
+       VALUES ('${cleanName.replace(/'/g, "''")}', '${cleanEmail.replace(/'/g, "''")}', '${hashedPassword}', '${role}', 'active', ${clientVal}, '${JSON.stringify(assigned_projects).replace(/'/g, "''")}'::jsonb, '${JSON.stringify(permissions).replace(/'/g, "''")}'::jsonb)
+       RETURNING id, name, email, role, status, client_name, assigned_projects, permissions, created_at as "createdAt"`
     );
 
     return NextResponse.json({ ok: true, user: inserted[0] }, { status: 201 });

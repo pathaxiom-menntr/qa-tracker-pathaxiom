@@ -11,7 +11,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, email, role, status, password, client_name, assigned_projects } = body;
+    const { name, email, role, status, password, client_name, assigned_projects, permissions } = body;
 
     // Prevent promoting any account to Super Admin
     if (role === "Super Admin") {
@@ -35,6 +35,9 @@ export async function PUT(req: Request, { params }: RouteParams) {
     if (assigned_projects !== undefined) {
       updates.push(`assigned_projects = '${JSON.stringify(assigned_projects).replace(/'/g, "''")}'::jsonb`);
     }
+    if (permissions !== undefined) {
+      updates.push(`permissions = '${JSON.stringify(permissions).replace(/'/g, "''")}'::jsonb`);
+    }
     if (password && password.length >= 6) {
       const hash = await bcrypt.hash(password, 10);
       updates.push(`password_hash = '${hash}'`);
@@ -44,11 +47,12 @@ export async function PUT(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "No fields provided to update" }, { status: 400 });
     }
 
+    await execDb("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions jsonb DEFAULT '[]'::jsonb;").catch(() => {});
     const updated = await queryDb(
       `UPDATE users
        SET ${updates.join(", ")}
        WHERE id = ${parseInt(id, 10)}
-       RETURNING id, name, email, role, status, client_name, assigned_projects, created_at as "createdAt"`
+       RETURNING id, name, email, role, status, client_name, assigned_projects, permissions, created_at as "createdAt"`
     );
 
     if (updated.length === 0) {

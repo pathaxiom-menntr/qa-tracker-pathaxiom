@@ -60,12 +60,12 @@ export const api = {
     return handle(await fetch(`${BASE}/users`));
   },
 
-  async createUser(name: string, email: string, role: Role, password = "password123", client_name?: string, assigned_projects?: string[]): Promise<{ ok: boolean; user: User }> {
+  async createUser(name: string, email: string, role: Role, password = "password123", client_name?: string, assigned_projects?: string[], permissions?: string[]): Promise<{ ok: boolean; user: User }> {
     return handle(
       await fetch(`${BASE}/users`, {
         method: "POST",
         headers: jsonHeaders,
-        body: JSON.stringify({ name, email, role, password, client_name, assigned_projects }),
+        body: JSON.stringify({ name, email, role, password, client_name, assigned_projects, permissions }),
       })
     );
   },

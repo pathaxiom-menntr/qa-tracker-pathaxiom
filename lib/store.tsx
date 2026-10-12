@@ -98,8 +98,8 @@ interface QAStoreType {
 
   // Users Management (Live Database)
   users: User[];
-  addUser: (name: string, email: string, role: Role, password: string, client_name?: string, assigned_projects?: string[]) => Promise<void>;
-  editUser: (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[]) => Promise<void>;
+  addUser: (name: string, email: string, role: Role, password: string, client_name?: string, assigned_projects?: string[], permissions?: string[]) => Promise<void>;
+  editUser: (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[], permissions?: string[]) => Promise<void>;
   toggleUserStatus: (id: number) => Promise<void>;
   deleteUser: (id: number) => Promise<void>;
 
@@ -327,9 +327,9 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // User Management
-  const addUser = async (name: string, email: string, role: Role, password: string, client_name?: string, assigned_projects?: string[]) => {
+  const addUser = async (name: string, email: string, role: Role, password: string, client_name?: string, assigned_projects?: string[], permissions?: string[]) => {
     try {
-      await api.createUser(name, email, role, password, client_name, assigned_projects);
+      await api.createUser(name, email, role, password, client_name, assigned_projects, permissions);
       await refreshAll();
     } catch (e: any) {
       alert("Failed to add user: " + e.message);
@@ -337,12 +337,12 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const editUser = async (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[]) => {
+  const editUser = async (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[], permissions?: string[]) => {
     try {
-      await api.updateUser(id, { name, email, role, password: password || undefined, client_name, assigned_projects });
+      await api.updateUser(id, { name, email, role, password: password || undefined, client_name, assigned_projects, permissions });
       await refreshAll();
       if (currentUser?.id === id) {
-        setCurrentUser((prev) => (prev ? { ...prev, name, email, role, client_name, assigned_projects } : null));
+        setCurrentUser((prev) => (prev ? { ...prev, name, email, role, client_name, assigned_projects, permissions } : null));
       }
     } catch (e: any) {
       alert("Failed to update user in database: " + e.message);
