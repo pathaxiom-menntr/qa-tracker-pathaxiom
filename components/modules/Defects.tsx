@@ -99,10 +99,17 @@ export function Defects() {
     createDefect,
     updateDefect,
     deleteDefect,
+    restoreDefect,
+    purgeDefect,
     projects,
     updateProject,
     currentUser,
   } = useQAStore();
+
+  // Tab State: Active Defects vs Recycle Bin / Trash
+  const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
+  const [confirmPurge, setConfirmPurge] = useState<Defect | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // Granular Module-Level Permissions (evaluated dynamically for all users)
   const canViewDefects = hasPermission(currentUser, "defects:view");
@@ -202,9 +209,17 @@ export function Defects() {
     return defects;
   }, [defects, isClient, clientOrgName, accessibleProjects, currentUser, userAssignedProjects]);
 
-  // Fully Filtered Defects (respects search, client, project, module, severity, status, and date filter)
+  // Counts for Active Defects vs Recycle Bin / Trash
+  const activeCount = useMemo(() => accessibleDefects.filter((d) => !d.is_deleted).length, [accessibleDefects]);
+  const trashCount = useMemo(() => accessibleDefects.filter((d) => !!d.is_deleted).length, [accessibleDefects]);
+
+  // Fully Filtered Defects (respects search, client, project, module, severity, status, and activeTab)
   const filtered = useMemo(() => {
     return accessibleDefects.filter((d) => {
+      // Tab filter: Active Defects vs Recycle Bin / Trash
+      const isDeleted = !!d.is_deleted;
+      if (activeTab === "active" && isDeleted) return false;
+      if (activeTab === "trash" && !isDeleted) return false;
       // Client filter
       if (selectedClient !== "All") {
         if ((d.client_name || "PathAxiom").toLowerCase() !== selectedClient.toLowerCase()) {
@@ -283,7 +298,7 @@ export function Defects() {
 
       return true;
     });
-  }, [accessibleDefects, selectedClient, selectedProject, modFilter, sevFilter, statusFilter, dateFilter, customStartDate, customEndDate, q]);
+  }, [accessibleDefects, selectedClient, selectedProject, modFilter, sevFilter, statusFilter, dateFilter, customStartDate, customEndDate, q, activeTab]);
 
   // Summary Metrics (dynamically computed from filtered)
   const criticalCount = filtered.filter((d) => d.severity === "Critical" || d.severity === "Major").length;
@@ -720,8 +735,61 @@ export function Defects() {
         </div>
       )}
 
-      {/* KPI Cards Row with Dynamic Graphs Toggle */}
-      <div className="space-y-3">
+      {/* Sub-Tab Navigation: Active Defects vs Recycle Bin / Trash */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab("active")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === "active"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Bug size={14} />
+            <span>Active Defects</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === "active" ? "bg-indigo-700 text-white" : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {activeCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("trash")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === "trash"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Trash2 size={14} />
+            <span>Recycle Bin / Trash</span>
+            {trashCount > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "trash" ? "bg-amber-700 text-white" : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {trashCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === "trash" && (
+          <div className="hidden sm:flex text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg items-center gap-1.5">
+            <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+            <span>Soft-deleted defects can be restored back to active tracking or permanently purged.</span>
+          </div>
+        )}
+      </div>
+
+      {activeTab === "active" ? (
+        /* KPI Cards Row with Dynamic Graphs Toggle */
+        <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
             <TrendingUp size={14} className="text-indigo-600" />
@@ -897,6 +965,27 @@ export function Defects() {
           </div>
         )}
       </div>
+    ) : (
+        /* Recycle Bin Header Banner */
+        <div
+          className="p-4 rounded-xl border flex items-center justify-between shadow-xs"
+          style={{ background: "#FEF3C7", borderColor: "#FCD34D" }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <Trash2 size={20} />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-amber-900">
+                Recycle Bin ({trashCount} {trashCount === 1 ? "defect" : "defects"})
+              </div>
+              <div className="text-[11px] text-amber-800 mt-0.5">
+                Defects in the recycle bin are hidden from active views and reports. You can click <b>Restore</b> on any item to put it back into active tracking immediately, or click the trash icon to permanently purge it from PostgreSQL.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Primary Filter and Action Bar */}
       <div
@@ -1023,29 +1112,36 @@ export function Defects() {
           </div>
 
           {/* Action Buttons: Log Defect & Hierarchy Settings */}
-          <div className="flex items-center gap-2">
-            {canManageProjects && (
-              <button
-                onClick={() => setShowManageHierarchy(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors cursor-pointer"
-                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
-                title="Manage Project Modules & Features"
-              >
-                <Settings2 size={13} color={COLORS.sub} />
-                Modules & Features
-              </button>
-            )}
+          {activeTab === "active" ? (
+            <div className="flex items-center gap-2">
+              {canManageProjects && (
+                <button
+                  onClick={() => setShowManageHierarchy(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors cursor-pointer"
+                  style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+                  title="Manage Project Modules & Features"
+                >
+                  <Settings2 size={13} color={COLORS.sub} />
+                  Modules & Features
+                </button>
+              )}
 
-            {canCreateDefect && (
-              <button
-                onClick={() => setShowAdd(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
-                style={{ background: COLORS.accent }}
-              >
-                <Plus size={14} /> Log Defect
-              </button>
-            )}
-          </div>
+              {canCreateDefect && (
+                <button
+                  onClick={() => setShowAdd(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
+                  style={{ background: COLORS.accent }}
+                >
+                  <Plus size={14} /> Log Defect
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-semibold">
+              <Trash2 size={12} className="text-amber-600" />
+              <span>Trash Mode</span>
+            </div>
+          )}
         </div>
 
         {/* Secondary Filter Row: Severity, Status & Download Buttons */}
@@ -1102,7 +1198,7 @@ export function Defects() {
             )}
 
             <span className="text-xs ml-2" style={{ color: COLORS.sub }}>
-              Showing <b>{filtered.length}</b> of <b>{accessibleDefects.length}</b> visible defects
+              Showing <b>{filtered.length}</b> of <b>{activeTab === "active" ? activeCount : trashCount}</b> {activeTab === "active" ? "active" : "deleted"} defects
             </span>
           </div>
 
@@ -1153,9 +1249,19 @@ export function Defects() {
                 <th className="py-2.5 px-4 font-semibold">Feature</th>
                 <th className="py-2.5 px-4 font-semibold">Severity</th>
                 <th className="py-2.5 px-4 font-semibold">Title</th>
-                <th className="py-2.5 px-4 font-semibold">Status</th>
-                <th className="py-2.5 px-4 font-semibold">Assignee</th>
-                <th className="py-2.5 px-4 font-semibold">Created Date</th>
+                {activeTab === "active" ? (
+                  <>
+                    <th className="py-2.5 px-4 font-semibold">Status</th>
+                    <th className="py-2.5 px-4 font-semibold">Assignee</th>
+                    <th className="py-2.5 px-4 font-semibold">Created Date</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="py-2.5 px-4 font-semibold">Status</th>
+                    <th className="py-2.5 px-4 font-semibold">Deleted By</th>
+                    <th className="py-2.5 px-4 font-semibold">Deleted Date</th>
+                  </>
+                )}
                 <th className="py-2.5 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -1163,7 +1269,9 @@ export function Defects() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={isClient ? 10 : 11} className="py-12 text-center text-xs" style={{ color: COLORS.sub }}>
-                    No defects matching the selected filters.
+                    {activeTab === "active"
+                      ? "No active defects matching the selected filters."
+                      : "The Recycle Bin is empty. No deleted defects found."}
                   </td>
                 </tr>
               ) : (
@@ -1218,33 +1326,84 @@ export function Defects() {
                         {d.status}
                       </span>
                     </td>
-                    <td className="py-2.5 px-4 font-medium" style={{ color: COLORS.ink }}>
-                      {d.assignee || "Unassigned"}
-                    </td>
-                    <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">
-                      {d.created_at ? new Date(d.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent"}
-                    </td>
+                    {activeTab === "active" ? (
+                      <>
+                        <td className="py-2.5 px-4 font-medium" style={{ color: COLORS.ink }}>
+                          {d.assignee || "Unassigned"}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">
+                          {d.created_at ? new Date(d.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent"}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-2.5 px-4 font-medium text-slate-700">
+                          {d.deleted_by || "Admin"}
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">
+                          {d.deleted_at ? new Date(d.deleted_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recent"}
+                        </td>
+                      </>
+                    )}
                     <td className="py-2.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {canEditDefect && (
-                          <button
-                            onClick={() => setEditing(d)}
-                            className="p-1 rounded hover:bg-slate-100 cursor-pointer"
-                            style={{ color: COLORS.sub }}
-                            title="Edit defect"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                        )}
-                        {canDeleteDefect && (
-                          <button
-                            onClick={() => setConfirmDelete(d)}
-                            className="p-1 rounded hover:bg-red-50 cursor-pointer"
-                            style={{ color: COLORS.red }}
-                            title="Delete defect"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        {activeTab === "active" ? (
+                          <>
+                            {canEditDefect && (
+                              <button
+                                onClick={() => setEditing(d)}
+                                className="p-1 rounded hover:bg-slate-100 cursor-pointer"
+                                style={{ color: COLORS.sub }}
+                                title="Edit defect"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
+                            {canDeleteDefect && (
+                              <button
+                                onClick={() => setConfirmDelete(d)}
+                                className="p-1 rounded hover:bg-red-50 cursor-pointer"
+                                style={{ color: COLORS.red }}
+                                title="Move to Recycle Bin"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {(canEditDefect || canDeleteDefect) && (
+                              <button
+                                onClick={async () => {
+                                  setRestoringId(d.id);
+                                  try {
+                                    await restoreDefect(d.id);
+                                  } finally {
+                                    setRestoringId(null);
+                                  }
+                                }}
+                                disabled={restoringId === d.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                title="Restore defect back to active tracking"
+                              >
+                                {restoringId === d.id ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <RotateCcw size={12} />
+                                )}
+                                <span>Restore</span>
+                              </button>
+                            )}
+                            {canDeleteDefect && (
+                              <button
+                                onClick={() => setConfirmPurge(d)}
+                                className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                                title="Permanently erase defect record from database"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
@@ -1712,7 +1871,7 @@ export function Defects() {
         />
       )}
 
-      {/* ==================== CONFIRM DELETE MODAL ==================== */}
+      {/* ==================== CONFIRM MOVE TO RECYCLE BIN MODAL ==================== */}
       {confirmDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
@@ -1724,18 +1883,18 @@ export function Defects() {
             style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
           >
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={16} color={COLORS.red} />
+              <AlertTriangle size={16} color={COLORS.amber} />
               <span className="text-sm font-semibold" style={{ color: COLORS.ink }}>
-                Delete Defect {confirmDelete.id}?
+                Move Defect {confirmDelete.id} to Recycle Bin?
               </span>
             </div>
             <p className="text-xs mb-5" style={{ color: COLORS.sub }}>
-              Are you sure you want to permanently delete this defect record from PostgreSQL?
+              This defect will be moved to the Recycle Bin and hidden from active views. You or an administrator can restore it at any time.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
                 style={{ color: COLORS.sub }}
               >
                 Cancel
@@ -1745,10 +1904,53 @@ export function Defects() {
                   await deleteDefect(confirmDelete.id);
                   setConfirmDelete(null);
                 }}
-                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm"
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm cursor-pointer"
+                style={{ background: COLORS.amber }}
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== CONFIRM PERMANENT PURGE MODAL ==================== */}
+      {confirmPurge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+          onClick={() => setConfirmPurge(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-xl p-5 shadow-2xl"
+            style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Trash2 size={16} color={COLORS.red} />
+              <span className="text-sm font-semibold text-red-600">
+                Permanently Delete Defect {confirmPurge.id}?
+              </span>
+            </div>
+            <p className="text-xs mb-5 text-slate-600">
+              <b>Warning:</b> This action is permanent and cannot be undone. This defect record will be completely erased from PostgreSQL.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmPurge(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+                style={{ color: COLORS.sub }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await purgeDefect(confirmPurge.id);
+                  setConfirmPurge(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm cursor-pointer"
                 style={{ background: COLORS.red }}
               >
-                Delete
+                Permanently Delete
               </button>
             </div>
           </div>

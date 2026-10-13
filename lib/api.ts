@@ -113,9 +113,27 @@ export const api = {
     );
   },
 
-  async deleteDefect(id: string): Promise<any> {
+  async deleteDefect(id: string, deletedBy = "QA Team"): Promise<any> {
     return handle(
-      await fetch(`${BASE}/defects/${encodeURIComponent(id)}`, {
+      await fetch(`${BASE}/defects/${encodeURIComponent(id)}?deleted_by=${encodeURIComponent(deletedBy)}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async restoreDefect(id: string): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/defects/${encodeURIComponent(id)}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgeDefect(id: string): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/defects/${encodeURIComponent(id)}?purge=true`, {
         method: "DELETE",
         headers: authHeaders(),
       })

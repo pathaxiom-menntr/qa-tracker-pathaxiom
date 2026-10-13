@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { queryDb } from "@/lib/db";
+import { queryDb, execDb } from "@/lib/db";
 
 // GET /api/defects - Fetch all defects from PostgreSQL
 export async function GET(req: Request) {
   try {
+    await execDb(`
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT FALSE;
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_at timestamp;
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_by text;
+    `).catch(() => {});
+
     const { searchParams } = new URL(req.url);
     const clientFilter = searchParams.get("client");
     const projectFilter = searchParams.get("project");
@@ -21,7 +27,10 @@ export async function GET(req: Request) {
              COALESCE(created_by, 'QA Team') as created_by,
              COALESCE(assignee, 'Unassigned') as assignee,
              COALESCE(updated_by, '') as updated_by, 
-             created_at, updated_at
+             created_at, updated_at,
+             COALESCE(is_deleted, false) as is_deleted,
+             deleted_at,
+             COALESCE(deleted_by, '') as deleted_by
       FROM defects
     `;
 

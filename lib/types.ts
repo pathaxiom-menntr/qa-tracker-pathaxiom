@@ -48,6 +48,9 @@ export interface Defect {
   created_by?: string;
   updated_by?: string;
   created_at?: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface Portal {

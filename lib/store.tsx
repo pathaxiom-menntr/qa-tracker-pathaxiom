@@ -131,6 +131,8 @@ interface QAStoreType {
   }) => Promise<void>;
   updateDefect: (id: string, patch: Partial<Defect>) => Promise<void>;
   deleteDefect: (id: string) => Promise<void>;
+  restoreDefect: (id: string) => Promise<void>;
+  purgeDefect: (id: string) => Promise<void>;
 
   // Browsers & Compatibility
   browsers: BrowserCompat[];
@@ -492,10 +494,30 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
   const deleteDefect = async (id: string) => {
     try {
       await ensureValidToken();
-      await api.deleteDefect(id);
+      await api.deleteDefect(id, currentUser?.name || "QA Team");
       await refreshAll();
     } catch (e: any) {
       alert("Failed to delete defect: " + e.message);
+    }
+  };
+
+  const restoreDefect = async (id: string) => {
+    try {
+      await ensureValidToken();
+      await api.restoreDefect(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to restore defect: " + e.message);
+    }
+  };
+
+  const purgeDefect = async (id: string) => {
+    try {
+      await ensureValidToken();
+      await api.purgeDefect(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to permanently delete defect: " + e.message);
     }
   };
 
@@ -611,6 +633,8 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         createDefect,
         updateDefect,
         deleteDefect,
+        restoreDefect,
+        purgeDefect,
         browsers,
         compat,
         addBrowser,

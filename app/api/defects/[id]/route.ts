@@ -35,6 +35,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (client_name !== undefined) updates.push(`client_name = '${client_name.replace(/'/g, "''")}'`);
     if (project_name !== undefined) updates.push(`project_name = '${project_name.replace(/'/g, "''")}'`);
     if (project_code !== undefined) updates.push(`project_code = '${project_code.replace(/'/g, "''")}'`);
+    if (body.is_deleted !== undefined) {
+      updates.push(`is_deleted = ${body.is_deleted ? "TRUE" : "FALSE"}`);
+      if (!body.is_deleted) {
+        updates.push("deleted_at = NULL", "deleted_by = NULL");
+      }
+    }
 
     const sql = `UPDATE defects SET ${updates.join(", ")} WHERE id = '${cleanId.replace(/'/g, "''")}' RETURNING *;`;
     const res = await queryDb(sql);
@@ -50,13 +56,34 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// DELETE /api/defects/[id] - Delete a defect
+// DELETE /api/defects/[id] - Soft delete to Recycle Bin (or permanently purge if ?purge=true)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const cleanId = decodeURIComponent(id).trim();
-    await execDb(`DELETE FROM defects WHERE id = '${cleanId.replace(/'/g, "''")}';`);
-    return NextResponse.json({ ok: true });
+    const { searchParams } = new URL(req.url);
+    const purge = searchParams.get("purge") === "true";
+    const deletedBy = searchParams.get("deleted_by") || "QA Team";
+
+    await execDb(`
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT FALSE;
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_at timestamp;
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_by text;
+    `).catch(() => {});
+
+    if (purge) {
+      await execDb(`DELETE FROM defects WHERE id = '${cleanId.replace(/'/g, "''")}';`);
+      return NextResponse.json({ ok: true, purged: true });
+    } else {
+      await execDb(`
+        UPDATE defects 
+        SET is_deleted = TRUE, 
+            deleted_at = NOW(), 
+            deleted_by = '${deletedBy.replace(/'/g, "''")}' 
+        WHERE id = '${cleanId.replace(/'/g, "''")}';
+      `);
+      return NextResponse.json({ ok: true, soft_deleted: true });
+    }
   } catch (error: any) {
     console.error("DELETE /api/defects/[id] error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete defect" }, { status: 500 });
