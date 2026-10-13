@@ -220,7 +220,17 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       if (usersRes.status === "fulfilled" && usersRes.value?.users) {
-        setUsers(usersRes.value.users);
+        const liveUsers = usersRes.value.users;
+        setUsers(liveUsers);
+        setCurrentUser((prev) => {
+          if (!prev) return null;
+          const fresh = liveUsers.find(
+            (u: User) =>
+              u.id === prev.id ||
+              u.email.toLowerCase() === prev.email.toLowerCase()
+          );
+          return fresh ? { ...prev, ...fresh } : prev;
+        });
       }
       if (projectsRes.status === "fulfilled" && projectsRes.value?.projects) {
         setProjects(projectsRes.value.projects);

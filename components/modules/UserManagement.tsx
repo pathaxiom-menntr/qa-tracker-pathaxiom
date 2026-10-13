@@ -147,48 +147,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "users:manage": "Manage Users",
 };
 
-export const DEFAULT_ROLE_PERMISSIONS: Record<Role, string[]> = {
-  "Super Admin": [
-    "defects:view", "defects:create", "defects:edit", "defects:delete",
-    "reports:download", "reports:upload",
-    "projects:manage",
-    "testcases:view", "testcases:manage",
-    "performance:access", "vapt:access", "browsers:access",
-    "users:manage",
-  ],
-  Admin: [
-    "defects:view", "defects:create", "defects:edit", "defects:delete",
-    "reports:download", "reports:upload",
-    "projects:manage",
-    "testcases:view", "testcases:manage",
-    "performance:access", "vapt:access", "browsers:access",
-    "users:manage",
-  ],
-  "QA Manager": [
-    "defects:view", "defects:create", "defects:edit", "defects:delete",
-    "reports:download", "reports:upload",
-    "projects:manage",
-    "testcases:view", "testcases:manage",
-    "performance:access", "vapt:access", "browsers:access",
-  ],
-  "QA Lead": [
-    "defects:view", "defects:create", "defects:edit",
-    "reports:download", "reports:upload",
-    "projects:manage",
-    "testcases:view", "testcases:manage",
-    "performance:access", "browsers:access",
-  ],
-  "QA Engineer": [
-    "defects:view", "defects:create", "defects:edit",
-    "reports:download",
-    "testcases:view",
-    "browsers:access",
-  ],
-  Client: [
-    "defects:view",
-    "reports:download",
-  ],
-};
+import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
+export { DEFAULT_ROLE_PERMISSIONS };
 
 function StatCard({
   label,
@@ -536,7 +496,7 @@ export function UserManagement() {
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             {userPerms.length} {userPerms.length === 1 ? "Privilege" : "Privileges"}
                           </span>
-                          {userPerms.slice(0, 3).map((p) => {
+                          {userPerms.slice(0, 3).map((p: string) => {
                             const label = PERMISSION_LABELS[p] || p.split(":")[1] || p;
                             return (
                               <span

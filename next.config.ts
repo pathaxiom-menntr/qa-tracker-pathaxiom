@@ -6,12 +6,8 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/api/defects/:path*",
-        destination: `${BACKEND_URL}/api/defects/:path*`,
-      },
-      {
-        source: "/api/defects",
-        destination: `${BACKEND_URL}/api/defects`,
+        source: "/api/defects/bulk",
+        destination: `${BACKEND_URL}/api/defects/bulk`,
       },
       {
         source: "/api/portals/:path*",

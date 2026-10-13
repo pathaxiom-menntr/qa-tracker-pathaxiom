@@ -43,6 +43,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useQAStore } from "@/lib/store";
 import { Defect, Project, Role } from "@/lib/types";
+import { hasPermission } from "@/lib/permissions";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -81,9 +82,6 @@ const STATUS_OPTIONS = ["Open", "In Progress", "Closed", "Reopened", "Deferred"]
 const SEVERITY_OPTIONS = ["Critical", "Major", "Medium", "Minor"];
 const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
 
-const EDIT_ROLES: Role[] = ["Super Admin", "Admin", "QA Manager", "QA Lead"];
-const canEdit = (role?: Role) => !!role && EDIT_ROLES.includes(role);
-
 function Badge({ children, color }: { children: React.ReactNode; color: string }) {
   return (
     <span
@@ -105,6 +103,14 @@ export function Defects() {
     updateProject,
     currentUser,
   } = useQAStore();
+
+  // Granular Module-Level Permissions (evaluated dynamically for all users)
+  const canViewDefects = hasPermission(currentUser, "defects:view");
+  const canCreateDefect = hasPermission(currentUser, "defects:create");
+  const canEditDefect = hasPermission(currentUser, "defects:edit");
+  const canDeleteDefect = hasPermission(currentUser, "defects:delete");
+  const canManageProjects = hasPermission(currentUser, "projects:manage");
+  const canExportReports = hasPermission(currentUser, "reports:download");
 
   // Role & Client Access Determination
   const isClient = currentUser?.role === "Client";
@@ -431,6 +437,10 @@ export function Defects() {
   // Submit Add Defect
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateDefect) {
+      setError("Your account does not have permission to log defects.");
+      return;
+    }
     if (!formTitle.trim() || !formId.trim() || busy) return;
 
     setBusy(true);
@@ -492,6 +502,10 @@ export function Defects() {
   // Submit Update Defect
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditDefect) {
+      alert("Your account does not have permission to edit defects.");
+      return;
+    }
     if (!editing) return;
     try {
       await updateDefect(editing.id, {
@@ -1010,10 +1024,10 @@ export function Defects() {
 
           {/* Action Buttons: Log Defect & Hierarchy Settings */}
           <div className="flex items-center gap-2">
-            {!isClient && (
+            {canManageProjects && (
               <button
                 onClick={() => setShowManageHierarchy(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors cursor-pointer"
                 style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
                 title="Manage Project Modules & Features"
               >
@@ -1022,13 +1036,15 @@ export function Defects() {
               </button>
             )}
 
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity"
-              style={{ background: COLORS.accent }}
-            >
-              <Plus size={14} /> Log Defect
-            </button>
+            {canCreateDefect && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
+                style={{ background: COLORS.accent }}
+              >
+                <Plus size={14} /> Log Defect
+              </button>
+            )}
           </div>
         </div>
 
@@ -1091,25 +1107,27 @@ export function Defects() {
           </div>
 
           {/* DOWNLOAD BUG REPORT BUTTONS (Requirement 1) */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500 mr-1">Download Report:</span>
-            <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
-              title="Download currently filtered bug list as Excel spreadsheet (.xlsx)"
-            >
-              <FileSpreadsheet size={14} className="text-emerald-600" />
-              Excel (.xlsx)
-            </button>
-            <button
-              onClick={handleExportPDF}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-sm"
-              title="Download currently filtered bug list as PDF document (.pdf)"
-            >
-              <FileText size={14} className="text-rose-600" />
-              PDF (.pdf)
-            </button>
-          </div>
+          {canExportReports && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500 mr-1">Download Report:</span>
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm cursor-pointer"
+                title="Download currently filtered bug list as Excel spreadsheet (.xlsx)"
+              >
+                <FileSpreadsheet size={14} className="text-emerald-600" />
+                Excel (.xlsx)
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-sm cursor-pointer"
+                title="Download currently filtered bug list as PDF document (.pdf)"
+              >
+                <FileText size={14} className="text-rose-600" />
+                PDF (.pdf)
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1208,18 +1226,20 @@ export function Defects() {
                     </td>
                     <td className="py-2.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setEditing(d)}
-                          className="p-1 rounded hover:bg-slate-100"
-                          style={{ color: COLORS.sub }}
-                          title="Edit defect"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        {canEdit(currentUser?.role) && (
+                        {canEditDefect && (
+                          <button
+                            onClick={() => setEditing(d)}
+                            className="p-1 rounded hover:bg-slate-100 cursor-pointer"
+                            style={{ color: COLORS.sub }}
+                            title="Edit defect"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                        {canDeleteDefect && (
                           <button
                             onClick={() => setConfirmDelete(d)}
-                            className="p-1 rounded hover:bg-red-50"
+                            className="p-1 rounded hover:bg-red-50 cursor-pointer"
                             style={{ color: COLORS.red }}
                             title="Delete defect"
                           >

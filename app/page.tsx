@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Role } from "@/lib/types";
+import { hasPermission } from "@/lib/permissions";
 
 // The 7 Original QA Modules + 1 New User Management Module
 import { ExecutiveDashboard } from "@/components/modules/ExecutiveDashboard";
@@ -65,7 +66,29 @@ export default function Home() {
     return <AuthScreen />;
   }
 
-  const currentNav = NAV.find((n) => n.key === view) || NAV[0];
+  // Filter accessible modules based on active user's permissions
+  const visibleNav = React.useMemo(() => {
+    return NAV.filter((n) => {
+      if (n.key === "overview") return true;
+      if (n.key === "users") return hasPermission(currentUser, "users:manage");
+      if (n.key === "defects") return hasPermission(currentUser, "defects:view");
+      if (n.key === "reports") return hasPermission(currentUser, "reports:download") || hasPermission(currentUser, "reports:upload");
+      if (n.key === "testcases") return hasPermission(currentUser, "testcases:view") || hasPermission(currentUser, "testcases:manage");
+      if (n.key === "compatibility") return hasPermission(currentUser, "browsers:access");
+      if (n.key === "performance") return hasPermission(currentUser, "performance:access");
+      if (n.key === "security") return hasPermission(currentUser, "vapt:access");
+      return true;
+    });
+  }, [currentUser]);
+
+  // If currently active view is not accessible to this user, redirect to first allowed module
+  React.useEffect(() => {
+    if (!visibleNav.some((n) => n.key === view)) {
+      setView(visibleNav[0]?.key || "overview");
+    }
+  }, [visibleNav, view]);
+
+  const currentNav = visibleNav.find((n) => n.key === view) || visibleNav[0] || NAV[0];
 
   return (
     <div
@@ -107,7 +130,7 @@ export default function Home() {
 
         {/* Navigation items */}
         <div className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-          {NAV.map((n) => {
+          {visibleNav.map((n) => {
             const Icon = n.icon;
             const active = view === n.key;
             return (

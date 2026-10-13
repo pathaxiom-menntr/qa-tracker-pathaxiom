@@ -5,6 +5,7 @@ import { queryDb, execDb } from "@/lib/db";
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    const cleanId = decodeURIComponent(id).trim();
     const body = await req.json();
     const {
       title,
@@ -35,7 +36,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (project_name !== undefined) updates.push(`project_name = '${project_name.replace(/'/g, "''")}'`);
     if (project_code !== undefined) updates.push(`project_code = '${project_code.replace(/'/g, "''")}'`);
 
-    const sql = `UPDATE defects SET ${updates.join(", ")} WHERE id = '${id.replace(/'/g, "''")}' RETURNING *;`;
+    const sql = `UPDATE defects SET ${updates.join(", ")} WHERE id = '${cleanId.replace(/'/g, "''")}' RETURNING *;`;
     const res = await queryDb(sql);
 
     if (res.length === 0) {
@@ -53,7 +54,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await execDb(`DELETE FROM defects WHERE id = '${id.replace(/'/g, "''")}';`);
+    const cleanId = decodeURIComponent(id).trim();
+    await execDb(`DELETE FROM defects WHERE id = '${cleanId.replace(/'/g, "''")}';`);
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error("DELETE /api/defects/[id] error:", error);
