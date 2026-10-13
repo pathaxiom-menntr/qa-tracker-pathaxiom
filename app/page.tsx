@@ -62,12 +62,9 @@ export default function Home() {
   const { currentUser, logout } = useQAStore();
   const [view, setView] = useState("overview");
 
-  if (!currentUser) {
-    return <AuthScreen />;
-  }
-
   // Filter accessible modules based on active user's permissions
   const visibleNav = React.useMemo(() => {
+    if (!currentUser) return NAV;
     return NAV.filter((n) => {
       if (n.key === "overview") return true;
       if (n.key === "users") return hasPermission(currentUser, "users:manage");
@@ -83,10 +80,14 @@ export default function Home() {
 
   // If currently active view is not accessible to this user, redirect to first allowed module
   React.useEffect(() => {
-    if (!visibleNav.some((n) => n.key === view)) {
+    if (currentUser && !visibleNav.some((n) => n.key === view)) {
       setView(visibleNav[0]?.key || "overview");
     }
-  }, [visibleNav, view]);
+  }, [visibleNav, view, currentUser]);
+
+  if (!currentUser) {
+    return <AuthScreen />;
+  }
 
   const currentNav = visibleNav.find((n) => n.key === view) || visibleNav[0] || NAV[0];
 
