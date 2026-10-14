@@ -103,6 +103,16 @@ export const api = {
     );
   },
 
+  async bulkCreateDefects(defects: (Defect | Record<string, any>)[]): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/defects/bulk`, {
+        method: "POST",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify({ defects }),
+      })
+    );
+  },
+
   async updateDefect(id: string, patch: Partial<Defect>): Promise<any> {
     return handle(
       await fetch(`${BASE}/defects/${encodeURIComponent(id)}`, {

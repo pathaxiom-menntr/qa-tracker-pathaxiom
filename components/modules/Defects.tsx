@@ -22,6 +22,7 @@ import {
   BarChart3,
   TrendingUp,
   RotateCcw,
+  Upload,
 } from "lucide-react";
 import {
   BarChart,
@@ -44,6 +45,7 @@ import autoTable from "jspdf-autotable";
 import { useQAStore } from "@/lib/store";
 import { Defect, Project, Role } from "@/lib/types";
 import { hasPermission } from "@/lib/permissions";
+import { BulkUploadModal } from "./BulkUploadModal";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -97,6 +99,7 @@ export function Defects() {
   const {
     defects,
     createDefect,
+    bulkCreateDefects,
     updateDefect,
     deleteDefect,
     restoreDefect,
@@ -110,6 +113,7 @@ export function Defects() {
   const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
   const [confirmPurge, setConfirmPurge] = useState<Defect | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   // Granular Module-Level Permissions (evaluated dynamically for all users)
   const canViewDefects = hasPermission(currentUser, "defects:view");
@@ -1128,6 +1132,18 @@ export function Defects() {
 
               {canCreateDefect && (
                 <button
+                  onClick={() => setShowBulkUpload(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer hover:bg-slate-100"
+                  style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+                  title="Bulk Upload Defects from Excel or CSV file"
+                >
+                  <Upload size={13} className="text-indigo-600" />
+                  <span>Bulk Upload</span>
+                </button>
+              )}
+
+              {canCreateDefect && (
+                <button
                   onClick={() => setShowAdd(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
                   style={{ background: COLORS.accent }}
@@ -1955,6 +1971,19 @@ export function Defects() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ==================== BULK UPLOAD MODAL ==================== */}
+      {showBulkUpload && (
+        <BulkUploadModal
+          projects={accessibleProjects}
+          availableClients={availableClients}
+          isClient={isClient}
+          clientOrgName={clientOrgName}
+          currentUser={currentUser}
+          onClose={() => setShowBulkUpload(false)}
+          onBulkUpload={bulkCreateDefects}
+        />
       )}
     </div>
   );

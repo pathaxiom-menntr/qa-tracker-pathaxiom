@@ -133,6 +133,7 @@ interface QAStoreType {
   deleteDefect: (id: string) => Promise<void>;
   restoreDefect: (id: string) => Promise<void>;
   purgeDefect: (id: string) => Promise<void>;
+  bulkCreateDefects: (defects: (Defect | Record<string, any>)[]) => Promise<any>;
 
   // Browsers & Compatibility
   browsers: BrowserCompat[];
@@ -521,6 +522,18 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const bulkCreateDefects = async (defectsList: (Defect | Record<string, any>)[]) => {
+    try {
+      await ensureValidToken();
+      const res = await api.bulkCreateDefects(defectsList);
+      await refreshAll();
+      return res;
+    } catch (e: any) {
+      alert("Failed to bulk upload defects: " + e.message);
+      throw e;
+    }
+  };
+
   // VAPT
   const createVapt = async (finding: Omit<VaptFinding, "id">) => {
     try {
@@ -635,6 +648,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         deleteDefect,
         restoreDefect,
         purgeDefect,
+        bulkCreateDefects,
         browsers,
         compat,
         addBrowser,
