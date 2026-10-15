@@ -600,7 +600,19 @@ function CreateProjectModal({
   const [description, setDescription] = useState("");
   const [modulesInput, setModulesInput] = useState("Authentication, Billing, Dashboard");
   const [assignedUserIds, setAssignedUserIds] = useState<number[]>([]);
+  const [userSearch, setUserSearch] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const filteredUsers = useMemo(() => {
+    if (!userSearch.trim()) return users;
+    const q = userSearch.toLowerCase();
+    return users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q)
+    );
+  }, [users, userSearch]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -797,43 +809,88 @@ function CreateProjectModal({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-700">
-                Give Project Access to Users ({assignedUserIds.length} selected)
+                Give Project Access to Users ({assignedUserIds.length} of {users.length} selected)
               </label>
               <button
                 type="button"
                 onClick={() => {
-                  if (assignedUserIds.length === users.length) setAssignedUserIds([]);
-                  else setAssignedUserIds(users.map((u) => u.id));
+                  if (userSearch.trim()) {
+                    const filteredIds = filteredUsers.map((u) => u.id);
+                    const allFilteredSelected = filteredIds.every((id) => assignedUserIds.includes(id));
+                    if (allFilteredSelected) {
+                      setAssignedUserIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+                    } else {
+                      setAssignedUserIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+                    }
+                  } else {
+                    if (assignedUserIds.length === users.length) setAssignedUserIds([]);
+                    else setAssignedUserIds(users.map((u) => u.id));
+                  }
                 }}
                 className="text-[11px] text-indigo-600 font-semibold cursor-pointer hover:underline"
               >
-                {assignedUserIds.length === users.length ? "Deselect All" : "Select All"}
+                {userSearch.trim()
+                  ? filteredUsers.length > 0 && filteredUsers.every((u) => assignedUserIds.includes(u.id))
+                    ? "Deselect Filtered"
+                    : "Select Filtered"
+                  : assignedUserIds.length === users.length
+                  ? "Deselect All"
+                  : "Select All"}
               </button>
             </div>
+
+            {/* User Search Bar */}
+            <div className="relative mb-2">
+              <Search size={13} className="text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search users by name, email, or role…"
+                className="w-full pl-8 pr-7 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+              />
+              {userSearch && (
+                <button
+                  type="button"
+                  onClick={() => setUserSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
             <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 p-2 space-y-1 bg-slate-50/50">
-              {users.map((u) => {
-                const checked = assignedUserIds.includes(u.id);
-                return (
-                  <label
-                    key={u.id}
-                    className="flex items-center justify-between p-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleUser(u.id)}
-                        className="rounded text-indigo-600 cursor-pointer"
-                      />
-                      <span className="font-medium text-slate-800">{u.name}</span>
-                      <span className="text-[10px] text-slate-400">({u.email})</span>
-                    </div>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                      {u.role}
-                    </span>
-                  </label>
-                );
-              })}
+              {filteredUsers.length === 0 ? (
+                <div className="text-center py-4 text-xs text-slate-400">
+                  No users found matching &quot;{userSearch}&quot;
+                </div>
+              ) : (
+                filteredUsers.map((u) => {
+                  const checked = assignedUserIds.includes(u.id);
+                  return (
+                    <label
+                      key={u.id}
+                      className="flex items-center justify-between p-1.5 rounded-lg hover:bg-white transition-colors cursor-pointer text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleUser(u.id)}
+                          className="rounded text-indigo-600 cursor-pointer"
+                        />
+                        <span className="font-medium text-slate-800">{u.name}</span>
+                        <span className="text-[10px] text-slate-400">({u.email})</span>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                        {u.role}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1030,7 +1087,7 @@ function ManageAccessModal({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">
-                Project Access: {project.name} ({project.code})
+                Give Project Access: {project.name} ({project.code})
               </h3>
               <p className="text-[11px] text-slate-500">
                 Select which team members have active access to this project
@@ -1042,49 +1099,100 @@ function ManageAccessModal({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="mb-3">
+        {/* Quick select and selection counter */}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-slate-700">
+            {selectedIds.length} of {users.length} users selected
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (search.trim()) {
+                const filteredIds = filteredUsers.map((u) => u.id);
+                const allFilteredSelected = filteredIds.every((id) => selectedIds.includes(id));
+                if (allFilteredSelected) {
+                  setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+                } else {
+                  setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+                }
+              } else {
+                if (selectedIds.length === users.length) setSelectedIds([]);
+                else setSelectedIds(users.map((u) => u.id));
+              }
+            }}
+            className="text-[11px] text-indigo-600 font-semibold cursor-pointer hover:underline"
+          >
+            {search.trim()
+              ? filteredUsers.length > 0 && filteredUsers.every((u) => selectedIds.includes(u.id))
+                ? "Deselect Filtered"
+                : "Select Filtered"
+              : selectedIds.length === users.length
+              ? "Deselect All"
+              : "Select All"}
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative mb-3">
+          <Search size={14} className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
+            type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search users by name, email, role…"
-            className="w-full px-3 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none focus:bg-white focus:border-indigo-500"
+            className="w-full pl-9 pr-8 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none focus:bg-white focus:border-indigo-500 transition-colors"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              title="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
 
         {/* User Selection List */}
         <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 p-2 space-y-1 bg-slate-50/50">
-          {filteredUsers.map((u) => {
-            const isAssigned = selectedIds.includes(u.id);
-            return (
-              <div
-                key={u.id}
-                onClick={() => toggleUser(u.id)}
-                className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer text-xs ${
-                  isAssigned
-                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
-                    : "bg-white border-slate-100 hover:border-slate-200 text-slate-700"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={`w-4 h-4 rounded flex items-center justify-center text-white ${
-                      isAssigned ? "bg-indigo-600" : "border border-slate-300"
-                    }`}
-                  >
-                    {isAssigned && <Check size={12} strokeWidth={3} />}
+          {filteredUsers.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-400">
+              No users found matching &quot;{search}&quot;
+            </div>
+          ) : (
+            filteredUsers.map((u) => {
+              const isAssigned = selectedIds.includes(u.id);
+              return (
+                <div
+                  key={u.id}
+                  onClick={() => toggleUser(u.id)}
+                  className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer text-xs ${
+                    isAssigned
+                      ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                      : "bg-white border-slate-100 hover:border-slate-200 text-slate-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-4 h-4 rounded flex items-center justify-center text-white ${
+                        isAssigned ? "bg-indigo-600" : "border border-slate-300"
+                      }`}
+                    >
+                      {isAssigned && <Check size={12} strokeWidth={3} />}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-900">{u.name}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{u.email}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">{u.name}</div>
-                    <div className="text-[10px] text-slate-400 font-normal">{u.email}</div>
-                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
+                    {u.role}
+                  </span>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
-                  {u.role}
-                </span>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
 
         {/* Footer */}
