@@ -10,6 +10,7 @@ import {
   Gauge,
   ShieldAlert,
   Users,
+  FolderGit2,
   LogOut,
   Lock,
   Mail,
@@ -23,7 +24,7 @@ import { useQAStore } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { hasPermission } from "@/lib/permissions";
 
-// The 7 Original QA Modules + 1 New User Management Module
+// The Original QA Modules + User Management & Project Management
 import { ExecutiveDashboard } from "@/components/modules/ExecutiveDashboard";
 import { Reports } from "@/components/modules/Reports";
 import { TestCases } from "@/components/modules/TestCases";
@@ -32,6 +33,7 @@ import { CompatibilityBrowsers } from "@/components/modules/CompatibilityBrowser
 import { Performance } from "@/components/modules/Performance";
 import { SecurityVAPT } from "@/components/modules/SecurityVAPT";
 import { UserManagement } from "@/components/modules/UserManagement";
+import { ProjectManagement } from "@/components/modules/ProjectManagement";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -56,6 +58,7 @@ const NAV = [
   { key: "performance", label: "Performance", icon: Gauge },
   { key: "security", label: "Security (VAPT)", icon: ShieldAlert },
   { key: "users", label: "User Management", icon: Users },
+  { key: "projects", label: "Project Management", icon: FolderGit2 },
 ];
 
 export default function Home() {
@@ -68,6 +71,7 @@ export default function Home() {
     return NAV.filter((n) => {
       if (n.key === "overview") return true;
       if (n.key === "users") return hasPermission(currentUser, "users:manage");
+      if (n.key === "projects") return hasPermission(currentUser, "projects:manage") || hasPermission(currentUser, "users:manage");
       if (n.key === "defects") return hasPermission(currentUser, "defects:view");
       if (n.key === "reports") return hasPermission(currentUser, "reports:download") || hasPermission(currentUser, "reports:upload");
       if (n.key === "testcases") return hasPermission(currentUser, "testcases:view") || hasPermission(currentUser, "testcases:manage");
@@ -233,6 +237,7 @@ export default function Home() {
             {view === "performance" && <Performance />}
             {view === "security" && <SecurityVAPT />}
             {view === "users" && <UserManagement />}
+            {view === "projects" && <ProjectManagement />}
           </div>
         </main>
       </div>

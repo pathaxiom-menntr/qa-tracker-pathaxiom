@@ -107,6 +107,7 @@ interface QAStoreType {
   projects: Project[];
   addProject: (project: Partial<Project>) => Promise<void>;
   updateProject: (id: number, patch: Partial<Project>) => Promise<void>;
+  deleteProject: (id: number) => Promise<void>;
 
   // Portals (Test Cases)
   portals: Portal[];
@@ -407,6 +408,17 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteProject = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.deleteProject(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to delete project: " + e.message);
+      throw e;
+    }
+  };
+
   // Portals
   const createPortal = async (name: string) => {
     try {
@@ -639,6 +651,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         projects,
         addProject,
         updateProject,
+        deleteProject,
         portals,
         createPortal,
         deletePortal,

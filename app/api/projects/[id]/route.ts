@@ -30,3 +30,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: error.message || "Failed to update project" }, { status: 500 });
   }
 }
+
+// DELETE /api/projects/[id] - Delete a project
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const projId = parseInt(id, 10);
+    if (isNaN(projId)) {
+      return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
+    }
+
+    await queryDb(`DELETE FROM projects WHERE id = ${projId}`);
+    return NextResponse.json({ ok: true, deleted: true });
+  } catch (error: any) {
+    console.error("DELETE /api/projects/[id] error:", error);
+    return NextResponse.json({ error: error.message || "Failed to delete project" }, { status: 500 });
+  }
+}

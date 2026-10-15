@@ -185,6 +185,15 @@ export const api = {
     );
   },
 
+  async deleteProject(id: number): Promise<{ ok: boolean }> {
+    return handle(
+      await fetch(`${BASE}/projects/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
   // ==================== PORTALS (TEST CASES) ====================
   async getPortals(): Promise<{ portals: Portal[] }> {
     return handle(await fetch(`${BASE}/portals`));
