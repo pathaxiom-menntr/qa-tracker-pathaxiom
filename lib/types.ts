@@ -24,6 +24,8 @@ export interface Project {
   code: string;
   name: string;
   client_name: string;
+  client_names?: string[];
+  is_shared?: boolean;
   description?: string;
   modules: string[];
   features: Record<string, string[]>;

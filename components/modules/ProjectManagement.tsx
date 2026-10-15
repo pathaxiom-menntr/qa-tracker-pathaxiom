@@ -71,25 +71,42 @@ export function ProjectManagement() {
     if (isClient) return [clientOrgName];
     const clientSet = new Set<string>();
     projects.forEach((p) => {
-      if (p.client_name) clientSet.add(p.client_name);
+      if (p.client_name) {
+        p.client_name.split(",").map((s) => s.trim()).filter(Boolean).forEach((c) => clientSet.add(c));
+      }
+      if (p.client_names && Array.isArray(p.client_names)) {
+        p.client_names.forEach((c) => clientSet.add(c));
+      }
     });
+    // Ensure default clients exist if none
+    ["PathAxiom", "FinTech Global", "HealthPlus Systems"].forEach((c) => clientSet.add(c));
     return Array.from(clientSet);
   }, [projects, isClient, clientOrgName]);
 
   // Filtered projects
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
-      if (isClient && p.client_name?.toLowerCase() !== clientOrgName.toLowerCase()) {
-        return false;
+      const pClients = (p.client_names && p.client_names.length > 0)
+        ? p.client_names.map((c) => c.toLowerCase())
+        : (p.client_name || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+
+      if (isClient) {
+        const matchesClient = pClients.includes(clientOrgName.toLowerCase()) || Boolean(p.is_shared);
+        if (!matchesClient) return false;
       }
-      if (selectedClient !== "All" && p.client_name?.toLowerCase() !== selectedClient.toLowerCase()) {
-        return false;
+      if (selectedClient !== "All") {
+        if (selectedClient === "Shared / Multi-Tenant") {
+          if (!p.is_shared && (!p.client_names || p.client_names.length <= 1)) return false;
+        } else {
+          const matchesSelected = pClients.includes(selectedClient.toLowerCase()) || (p.is_shared && pClients.length === 0);
+          if (!matchesSelected) return false;
+        }
       }
       if (search.trim()) {
         const query = search.toLowerCase();
         const matchName = p.name.toLowerCase().includes(query);
         const matchCode = p.code.toLowerCase().includes(query);
-        const matchClient = (p.client_name || "").toLowerCase().includes(query);
+        const matchClient = (p.client_name || "").toLowerCase().includes(query) || pClients.some((c) => c.includes(query));
         const matchDesc = (p.description || "").toLowerCase().includes(query);
         if (!matchName && !matchCode && !matchClient && !matchDesc) return false;
       }
@@ -213,7 +230,12 @@ export function ProjectManagement() {
               onChange={(e) => setSelectedClient(e.target.value)}
               className="px-2.5 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-800 outline-none cursor-pointer max-w-[170px] truncate font-medium"
             >
-              {!isClient && <option value="All">All Clients</option>}
+              {!isClient && (
+                <>
+                  <option value="All">All Clients</option>
+                  <option value="Shared / Multi-Tenant">Shared / Multi-Tenant</option>
+                </>
+              )}
               {availableClients.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -298,13 +320,41 @@ export function ProjectManagement() {
                     <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
                       {p.code}
                     </span>
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 truncate max-w-[160px]">
-                      {p.client_name || "PathAxiom"}
-                    </span>
+                    {p.is_shared || (p.client_names && p.client_names.length > 1) ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200"
+                        title={`Shared across: ${(p.client_names && p.client_names.length > 0 ? p.client_names : [p.client_name]).join(", ")}`}
+                      >
+                        <Users size={11} className="text-purple-600" />
+                        <span>Shared Project ({p.client_names?.length || "Multi-Client"})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 truncate max-w-[160px]">
+                        {p.client_name || "PathAxiom"}
+                      </span>
+                    )}
                   </div>
 
                   {/* Project Title & Description */}
                   <h3 className="font-bold text-sm text-slate-900 mb-1">{p.name}</h3>
+
+                  {/* Multi-Client Tags preview */}
+                  {(p.is_shared || (p.client_names && p.client_names.length > 1)) && (
+                    <div className="flex flex-wrap items-center gap-1 mb-2">
+                      <span className="text-[10px] font-medium text-slate-400 mr-0.5 flex items-center gap-0.5">
+                        <Building2 size={10} /> Clients:
+                      </span>
+                      {(p.client_names && p.client_names.length > 0 ? p.client_names : (p.client_name || "").split(",")).map((c) => (
+                        <span
+                          key={c.trim()}
+                          className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100"
+                        >
+                          {c.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <p className="text-xs text-slate-500 line-clamp-2 min-h-[32px] mb-3">
                     {p.description || "No project description provided."}
                   </p>
@@ -594,6 +644,11 @@ function CreateProjectModal({
   }, [existingCodes]);
 
   const [code, setCode] = useState(suggestedCode);
+  const [isSharedProject, setIsSharedProject] = useState(false);
+  const [selectedClients, setSelectedClients] = useState<string[]>([
+    isClient ? clientOrgName : availableClients[0] || "PathAxiom",
+  ]);
+  const [customClientInput, setCustomClientInput] = useState("");
   const [client, setClient] = useState(isClient ? clientOrgName : availableClients[0] || "PathAxiom");
   const [newClientName, setNewClientName] = useState("");
   const [isCreatingNewClient, setIsCreatingNewClient] = useState(false);
@@ -621,10 +676,23 @@ function CreateProjectModal({
       return;
     }
 
-    const finalClient = isCreatingNewClient ? newClientName.trim() : client;
-    if (!finalClient) {
-      alert("Please specify a client organization.");
-      return;
+    let finalClient = "";
+    let finalClients: string[] = [];
+
+    if (isSharedProject) {
+      if (selectedClients.length === 0) {
+        alert("Please tag at least one client for this shared project.");
+        return;
+      }
+      finalClients = selectedClients;
+      finalClient = selectedClients.join(", ");
+    } else {
+      finalClient = isCreatingNewClient ? newClientName.trim() : client;
+      if (!finalClient) {
+        alert("Please specify a client organization.");
+        return;
+      }
+      finalClients = [finalClient];
     }
 
     // Split modules input into clean array
@@ -647,6 +715,8 @@ function CreateProjectModal({
           code: code.trim().toUpperCase(),
           name: name.trim(),
           client_name: finalClient,
+          client_names: finalClients,
+          is_shared: isSharedProject,
           description: description.trim(),
           modules,
           features,
@@ -723,55 +793,179 @@ function CreateProjectModal({
             </div>
           </div>
 
-          {/* Client Organization */}
+          {/* Client Organization & Multi-Client Scope */}
           <div>
-            <label className="text-xs font-medium text-slate-700 block mb-1">
-              Client Organization *
-            </label>
-            {!isClient && (
-              <div className="flex items-center gap-2 mb-1.5">
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingNewClient(false)}
-                  className={`text-[11px] font-semibold px-2 py-0.5 rounded cursor-pointer ${
-                    !isCreatingNewClient ? "bg-indigo-100 text-indigo-800" : "text-slate-500"
-                  }`}
-                >
-                  Existing Client
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingNewClient(true)}
-                  className={`text-[11px] font-semibold px-2 py-0.5 rounded cursor-pointer ${
-                    isCreatingNewClient ? "bg-indigo-100 text-indigo-800" : "text-slate-500"
-                  }`}
-                >
-                  + Add New Client
-                </button>
-              </div>
-            )}
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-800">
+                Client Organization & Scope *
+              </label>
+              {!isClient && (
+                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isSharedProject}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsSharedProject(checked);
+                      if (checked && selectedClients.length === 0) {
+                        setSelectedClients([client || availableClients[0] || "PathAxiom"]);
+                      }
+                    }}
+                    className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="font-semibold text-indigo-700">Shared Project Across Multiple Clients</span>
+                </label>
+              )}
+            </div>
 
-            {isCreatingNewClient ? (
-              <input
-                required
-                value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-                placeholder="Type new client organization name…"
-                className="w-full px-3 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none focus:bg-white focus:border-indigo-500"
-              />
+            {isSharedProject ? (
+              <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-indigo-900 flex items-center gap-1">
+                    <Users size={12} className="text-indigo-600" />
+                    <span>Tagged Clients ({selectedClients.length})</span>
+                  </span>
+                  {selectedClients.length < availableClients.length && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedClients([...availableClients])}
+                      className="text-indigo-600 hover:text-indigo-800 font-medium underline cursor-pointer text-[10px]"
+                    >
+                      + Tag All Existing Clients
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected Client Chips */}
+                <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-white rounded-lg border border-indigo-100">
+                  {selectedClients.length === 0 ? (
+                    <span className="text-xs text-slate-400 italic">No clients tagged yet. Select or type below.</span>
+                  ) : (
+                    selectedClients.map((c) => (
+                      <span
+                        key={c}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs"
+                      >
+                        <Building2 size={11} className="text-indigo-500" />
+                        <span>{c}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedClients(selectedClients.filter((sc) => sc !== c))}
+                          className="p-0.5 rounded-full hover:bg-indigo-200 text-indigo-600 cursor-pointer"
+                          title={`Remove ${c}`}
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                {/* Add Client Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val && !selectedClients.includes(val)) {
+                        setSelectedClients([...selectedClients, val]);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white border border-slate-200 outline-none cursor-pointer"
+                  >
+                    <option value="">+ Add from Existing Clients...</option>
+                    {availableClients
+                      .filter((c) => !selectedClients.includes(c))
+                      .map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                  </select>
+
+                  <div className="flex gap-1.5">
+                    <input
+                      value={customClientInput}
+                      onChange={(e) => setCustomClientInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (customClientInput.trim() && !selectedClients.includes(customClientInput.trim())) {
+                            setSelectedClients([...selectedClients, customClientInput.trim()]);
+                            setCustomClientInput("");
+                          }
+                        }
+                      }}
+                      placeholder="Type client name…"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-white border border-slate-200 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customClientInput.trim() && !selectedClients.includes(customClientInput.trim())) {
+                          setSelectedClients([...selectedClients, customClientInput.trim()]);
+                          setCustomClientInput("");
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 italic">
+                  💡 This project will be shared across all tagged client workspaces and allow tenant-specific defect filtering.
+                </div>
+              </div>
             ) : (
-              <select
-                disabled={isClient}
-                value={client}
-                onChange={(e) => setClient(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none cursor-pointer"
-              >
-                {availableClients.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <div>
+                {!isClient && (
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingNewClient(false)}
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded cursor-pointer ${
+                        !isCreatingNewClient ? "bg-indigo-100 text-indigo-800" : "text-slate-500"
+                      }`}
+                    >
+                      Existing Client
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingNewClient(true)}
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded cursor-pointer ${
+                        isCreatingNewClient ? "bg-indigo-100 text-indigo-800" : "text-slate-500"
+                      }`}
+                    >
+                      + Add New Client
+                    </button>
+                  </div>
+                )}
+
+                {isCreatingNewClient ? (
+                  <input
+                    required
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Type new client organization name…"
+                    className="w-full px-3 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none focus:bg-white focus:border-indigo-500"
+                  />
+                ) : (
+                  <select
+                    disabled={isClient}
+                    value={client}
+                    onChange={(e) => setClient(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none cursor-pointer"
+                  >
+                    {availableClients.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             )}
           </div>
 
@@ -932,19 +1126,51 @@ function EditProjectModal({
   onUpdate: (patch: Partial<Project>) => Promise<void>;
 }) {
   const [name, setName] = useState(project.name);
-  const [client, setClient] = useState(project.client_name || "PathAxiom");
+  
+  const initialShared = Boolean(
+    project.is_shared ||
+    (project.client_names && project.client_names.length > 1) ||
+    (project.client_name && project.client_name.includes(","))
+  );
+
+  const initialClients = project.client_names && project.client_names.length > 0
+    ? project.client_names
+    : (project.client_name || "PathAxiom").split(",").map(c => c.trim()).filter(Boolean);
+
+  const [isSharedProject, setIsSharedProject] = useState(initialShared);
+  const [selectedClients, setSelectedClients] = useState<string[]>(initialClients.length > 0 ? initialClients : ["PathAxiom"]);
+  const [customClientInput, setCustomClientInput] = useState("");
+  const [singleClient, setSingleClient] = useState(initialClients[0] || project.client_name || "PathAxiom");
   const [description, setDescription] = useState(project.description || "");
   const [busy, setBusy] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let finalClient = "";
+    let finalClients: string[] = [];
+
+    if (isSharedProject) {
+      if (selectedClients.length === 0) {
+        alert("Please select or tag at least one client for this shared project.");
+        return;
+      }
+      finalClients = selectedClients;
+      finalClient = selectedClients.join(", ");
+    } else {
+      finalClient = singleClient.trim() || "PathAxiom";
+      finalClients = [finalClient];
+    }
+
     setBusy(true);
     try {
       await onUpdate({
         name: name.trim(),
-        client_name: client.trim(),
+        client_name: finalClient,
+        client_names: finalClients,
+        is_shared: isSharedProject,
         description: description.trim(),
       });
+      onClose();
     } finally {
       setBusy(false);
     }
@@ -980,14 +1206,143 @@ function EditProjectModal({
             />
           </div>
 
+          {/* Client Scope & Multi-Client Assignment */}
           <div>
-            <label className="text-xs font-medium text-slate-700 block mb-1">Client Organization</label>
-            <input
-              disabled={isClient}
-              value={client}
-              onChange={(e) => setClient(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none focus:bg-white focus:border-indigo-500"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-800">
+                Client Organization & Scope *
+              </label>
+              {!isClient && (
+                <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isSharedProject}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsSharedProject(checked);
+                      if (checked && selectedClients.length === 0) {
+                        setSelectedClients([singleClient || availableClients[0] || "PathAxiom"]);
+                      }
+                    }}
+                    className="w-3.5 h-3.5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="font-semibold text-indigo-700">Shared Project Across Multiple Clients</span>
+                </label>
+              )}
+            </div>
+
+            {isSharedProject ? (
+              <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-indigo-900 flex items-center gap-1">
+                    <Users size={12} className="text-indigo-600" />
+                    <span>Tagged Clients ({selectedClients.length})</span>
+                  </span>
+                  {selectedClients.length < availableClients.length && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedClients([...availableClients])}
+                      className="text-indigo-600 hover:text-indigo-800 font-medium underline cursor-pointer text-[10px]"
+                    >
+                      + Tag All Existing Clients
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected Client Chips */}
+                <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-white rounded-lg border border-indigo-100">
+                  {selectedClients.length === 0 ? (
+                    <span className="text-xs text-slate-400 italic">No clients tagged yet.</span>
+                  ) : (
+                    selectedClients.map((c) => (
+                      <span
+                        key={c}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs"
+                      >
+                        <Building2 size={11} className="text-indigo-500" />
+                        <span>{c}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedClients(selectedClients.filter((sc) => sc !== c))}
+                          className="p-0.5 rounded-full hover:bg-indigo-200 text-indigo-600 cursor-pointer"
+                          title={`Remove ${c}`}
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                {/* Add Client controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val && !selectedClients.includes(val)) {
+                        setSelectedClients([...selectedClients, val]);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white border border-slate-200 outline-none cursor-pointer"
+                  >
+                    <option value="">+ Add from Existing Clients...</option>
+                    {availableClients
+                      .filter((c) => !selectedClients.includes(c))
+                      .map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                  </select>
+
+                  <div className="flex gap-1.5">
+                    <input
+                      value={customClientInput}
+                      onChange={(e) => setCustomClientInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (customClientInput.trim() && !selectedClients.includes(customClientInput.trim())) {
+                            setSelectedClients([...selectedClients, customClientInput.trim()]);
+                            setCustomClientInput("");
+                          }
+                        }
+                      }}
+                      placeholder="Type client name…"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg text-xs bg-white border border-slate-200 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customClientInput.trim() && !selectedClients.includes(customClientInput.trim())) {
+                          setSelectedClients([...selectedClients, customClientInput.trim()]);
+                          setCustomClientInput("");
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <select
+                  disabled={isClient}
+                  value={singleClient}
+                  onChange={(e) => setSingleClient(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-xs bg-slate-50 border border-slate-200 outline-none cursor-pointer"
+                >
+                  {availableClients.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div>

@@ -6,6 +6,8 @@ export async function GET() {
   try {
     const projects = await queryDb(
       `SELECT id, code, name, client_name, description, 
+              COALESCE(client_names, '[]'::jsonb) as "client_names",
+              COALESCE(is_shared, false) as "is_shared",
               COALESCE(modules, '[]'::jsonb) as modules, 
               COALESCE(features, '{}'::jsonb) as features, 
               COALESCE(assigned_user_ids, '[]'::jsonb) as "assigned_user_ids",
@@ -28,6 +30,8 @@ export async function POST(req: Request) {
       code,
       name,
       client_name = "PathAxiom",
+      client_names = [],
+      is_shared = false,
       description = "",
       modules = ["General"],
       features = { General: ["Core"] },
@@ -43,17 +47,19 @@ export async function POST(req: Request) {
     const safeClient = client_name.trim();
 
     const inserted = await queryDb(
-      `INSERT INTO projects (code, name, client_name, description, modules, features, assigned_user_ids)
+      `INSERT INTO projects (code, name, client_name, client_names, is_shared, description, modules, features, assigned_user_ids)
        VALUES (
          '${safeCode.replace(/'/g, "''")}',
          '${safeName.replace(/'/g, "''")}',
          '${safeClient.replace(/'/g, "''")}',
+         '${JSON.stringify(client_names).replace(/'/g, "''")}'::jsonb,
+         ${is_shared ? "true" : "false"},
          '${description.replace(/'/g, "''")}',
          '${JSON.stringify(modules).replace(/'/g, "''")}'::jsonb,
          '${JSON.stringify(features).replace(/'/g, "''")}'::jsonb,
          '${JSON.stringify(assigned_user_ids).replace(/'/g, "''")}'::jsonb
        )
-       RETURNING id, code, name, client_name, description, modules, features, assigned_user_ids, created_at`
+       RETURNING id, code, name, client_name, client_names, is_shared, description, modules, features, assigned_user_ids, created_at`
     );
 
     return NextResponse.json({ ok: true, project: inserted[0] });

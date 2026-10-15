@@ -6,12 +6,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, client_name, description, modules, features, assigned_user_ids } = body;
+    const { name, client_name, client_names, is_shared, description, modules, features, assigned_user_ids } = body;
 
     const updates: string[] = ["updated_at = NOW()"];
 
     if (name) updates.push(`name = '${name.replace(/'/g, "''")}'`);
     if (client_name) updates.push(`client_name = '${client_name.replace(/'/g, "''")}'`);
+    if (client_names !== undefined) updates.push(`client_names = '${JSON.stringify(client_names).replace(/'/g, "''")}'::jsonb`);
+    if (is_shared !== undefined) updates.push(`is_shared = ${is_shared ? "true" : "false"}`);
     if (description !== undefined) updates.push(`description = '${(description || "").replace(/'/g, "''")}'`);
     if (modules) updates.push(`modules = '${JSON.stringify(modules).replace(/'/g, "''")}'::jsonb`);
     if (features) updates.push(`features = '${JSON.stringify(features).replace(/'/g, "''")}'::jsonb`);

@@ -135,7 +135,9 @@ export function Defects() {
     if (isClient) {
       return projects.filter(
         (p) =>
-          (p.client_name && p.client_name.toLowerCase() === clientOrgName.toLowerCase()) ||
+          (p.client_name && p.client_name.toLowerCase().includes(clientOrgName.toLowerCase())) ||
+          (p.client_names && p.client_names.some((cn: string) => cn.toLowerCase() === clientOrgName.toLowerCase())) ||
+          Boolean(p.is_shared) ||
           userAssignedProjects.includes(p.code)
       );
     }
@@ -148,7 +150,17 @@ export function Defects() {
   // Clients available for filtering
   const availableClients = useMemo(() => {
     if (isClient) return [clientOrgName];
-    return Array.from(new Set(projects.map((p) => p.client_name).filter(Boolean)));
+    const clientSet = new Set<string>();
+    projects.forEach((p) => {
+      if (p.client_name) {
+        p.client_name.split(",").map((s) => s.trim()).filter(Boolean).forEach((c) => clientSet.add(c));
+      }
+      if (p.client_names && Array.isArray(p.client_names)) {
+        p.client_names.forEach((c) => clientSet.add(c));
+      }
+    });
+    ["PathAxiom", "FinTech Global", "HealthPlus Systems"].forEach((c) => clientSet.add(c));
+    return Array.from(clientSet);
   }, [projects, isClient, clientOrgName]);
 
   // Filters State
@@ -180,9 +192,13 @@ export function Defects() {
   // Projects under currently selected client
   const projectsForClient = useMemo(() => {
     if (selectedClient === "All") return accessibleProjects;
-    return accessibleProjects.filter(
-      (p) => p.client_name.toLowerCase() === selectedClient.toLowerCase()
-    );
+    const cLower = selectedClient.toLowerCase();
+    return accessibleProjects.filter((p) => {
+      const matchPrimary = (p.client_name || "").toLowerCase() === cLower;
+      const matchNames = p.client_names && p.client_names.some((cn: string) => cn.toLowerCase() === cLower);
+      const matchShared = Boolean(p.is_shared) || (p.client_name || "").toLowerCase().includes(cLower);
+      return matchPrimary || matchNames || matchShared;
+    });
   }, [accessibleProjects, selectedClient]);
 
   // Modules available under currently selected project(s)
@@ -408,7 +424,15 @@ export function Defects() {
       const targetClient = isClient ? clientOrgName : selectedClient !== "All" ? selectedClient : (accessibleProjects[0]?.client_name || "PathAxiom");
       setFormClient(targetClient);
 
-      const availForClient = accessibleProjects.filter((p) => p.client_name.toLowerCase() === targetClient.toLowerCase());
+      const isMatch = (p: Project, c: string) => {
+        const cLower = c.toLowerCase();
+        const matchPrimary = (p.client_name || "").toLowerCase() === cLower;
+        const matchNames = p.client_names && p.client_names.some((cn: string) => cn.toLowerCase() === cLower);
+        const matchShared = Boolean(p.is_shared) || (p.client_name || "").toLowerCase().includes(cLower);
+        return matchPrimary || matchNames || matchShared;
+      };
+
+      const availForClient = accessibleProjects.filter((p) => isMatch(p, targetClient));
       const targetProj = selectedProject !== "All" ? selectedProject : (availForClient[0]?.code || accessibleProjects[0]?.code || "PRJ-001");
       setFormProjectCode(targetProj);
 
@@ -425,7 +449,13 @@ export function Defects() {
   // When formClient changes, update project code
   const handleFormClientChange = (c: string) => {
     setFormClient(c);
-    const projs = accessibleProjects.filter((p) => p.client_name.toLowerCase() === c.toLowerCase());
+    const cLower = c.toLowerCase();
+    const projs = accessibleProjects.filter((p) => {
+      const matchPrimary = (p.client_name || "").toLowerCase() === cLower;
+      const matchNames = p.client_names && p.client_names.some((cn: string) => cn.toLowerCase() === cLower);
+      const matchShared = Boolean(p.is_shared) || (p.client_name || "").toLowerCase().includes(cLower);
+      return matchPrimary || matchNames || matchShared;
+    });
     if (projs.length > 0) {
       setFormProjectCode(projs[0].code);
       if (projs[0].modules.length > 0) {
@@ -1516,10 +1546,16 @@ export function Defects() {
                     style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
                   >
                     {accessibleProjects
-                      .filter((p) => p.client_name.toLowerCase() === formClient.toLowerCase())
+                      .filter((p) => {
+                        const cLower = formClient.toLowerCase();
+                        const matchPrimary = (p.client_name || "").toLowerCase() === cLower;
+                        const matchNames = p.client_names && p.client_names.some((cn: string) => cn.toLowerCase() === cLower);
+                        const matchShared = Boolean(p.is_shared) || (p.client_name || "").toLowerCase().includes(cLower);
+                        return matchPrimary || matchNames || matchShared;
+                      })
                       .map((p) => (
                         <option key={p.code} value={p.code}>
-                          {p.name} ({p.code})
+                          {p.name} ({p.code}){p.is_shared || (p.client_names && p.client_names.length > 1) ? " [Shared]" : ""}
                         </option>
                       ))}
                   </select>
