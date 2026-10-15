@@ -8,6 +8,7 @@ export async function GET(req: Request) {
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT FALSE;
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_at timestamp;
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_by text;
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb;
     `).catch(() => {});
 
     const { searchParams } = new URL(req.url);
@@ -30,7 +31,8 @@ export async function GET(req: Request) {
              created_at, updated_at,
              COALESCE(is_deleted, false) as is_deleted,
              deleted_at,
-             COALESCE(deleted_by, '') as deleted_by
+             COALESCE(deleted_by, '') as deleted_by,
+             COALESCE(attachments, '[]'::jsonb) as attachments
       FROM defects
     `;
 
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
       status = "Open",
       created_by = "QA Team",
       assignee = "Unassigned",
+      attachments = [],
     } = body;
 
     if (!title || !module) {
@@ -91,8 +94,9 @@ export async function POST(req: Request) {
       bugId = `BUG-${String(max + 1).padStart(3, "0")}`;
     }
 
+    const attachmentsJson = JSON.stringify(attachments || []).replace(/'/g, "''");
     const inserted = await queryDb(
-      `INSERT INTO defects (id, client_name, project_name, project_code, module, feature, severity, priority, title, description, status, created_by, assignee)
+      `INSERT INTO defects (id, client_name, project_name, project_code, module, feature, severity, priority, title, description, status, created_by, assignee, attachments)
        VALUES (
          '${bugId.replace(/'/g, "''")}',
          '${client_name.replace(/'/g, "''")}',
@@ -106,7 +110,8 @@ export async function POST(req: Request) {
          '${(description || "").replace(/'/g, "''")}',
          '${status.replace(/'/g, "''")}',
          '${created_by.replace(/'/g, "''")}',
-         '${assignee.replace(/'/g, "''")}'
+         '${assignee.replace(/'/g, "''")}',
+         '${attachmentsJson}'::jsonb
        )
        RETURNING *;`
     );

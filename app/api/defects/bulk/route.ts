@@ -16,6 +16,7 @@ export async function POST(req: Request) {
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT FALSE;
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_at timestamp;
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS deleted_by text;
+      ALTER TABLE defects ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb;
     `).catch(() => {});
 
     // Find the current max bug ID in defects table

@@ -23,6 +23,7 @@ import {
   TrendingUp,
   RotateCcw,
   Upload,
+  Paperclip,
 } from "lucide-react";
 import {
   BarChart,
@@ -43,9 +44,10 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useQAStore } from "@/lib/store";
-import { Defect, Project, Role } from "@/lib/types";
+import { Defect, Project, Role, DefectAttachment } from "@/lib/types";
 import { hasPermission } from "@/lib/permissions";
 import { BulkUploadModal } from "./BulkUploadModal";
+import { DefectAttachmentsSection, DefectAttachmentsViewerModal } from "./DefectAttachments";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -363,6 +365,7 @@ export function Defects() {
   const [showManageHierarchy, setShowManageHierarchy] = useState(false);
   const [editing, setEditing] = useState<Defect | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Defect | null>(null);
+  const [viewingAttachmentsDefect, setViewingAttachmentsDefect] = useState<Defect | null>(null);
 
   // Compute next suggested Bug ID
   const nextIdGuess = useMemo(() => {
@@ -383,6 +386,7 @@ export function Defects() {
   const [formSeverity, setFormSeverity] = useState("Medium");
   const [formPriority, setPriority] = useState("Medium");
   const [formAssignee, setFormAssignee] = useState("QA Team");
+  const [formAttachments, setFormAttachments] = useState<DefectAttachment[]>([]);
   const [newModInput, setNewModInput] = useState("");
   const [showNewModField, setShowNewModField] = useState(false);
   const [newFeatInput, setNewFeatInput] = useState("");
@@ -394,6 +398,9 @@ export function Defects() {
   useEffect(() => {
     if (showAdd) {
       setFormId(nextIdGuess);
+      setFormTitle("");
+      setFormDesc("");
+      setFormAttachments([]);
       setError("");
       setShowNewModField(false);
       setShowNewFeatField(false);
@@ -506,10 +513,12 @@ export function Defects() {
         priority: formPriority,
         status: "Open",
         assignee: formAssignee.trim() || "QA Team",
+        attachments: formAttachments,
       });
 
       setFormTitle("");
       setFormDesc("");
+      setFormAttachments([]);
       setShowAdd(false);
     } catch (err: any) {
       setError(err.message || "Failed to log defect");
@@ -539,6 +548,7 @@ export function Defects() {
         priority: editing.priority,
         status: editing.status,
         assignee: editing.assignee,
+        attachments: editing.attachments || [],
       });
       setEditing(null);
     } catch (err: any) {
@@ -1321,11 +1331,28 @@ export function Defects() {
                       <Badge color={SEV_COLOR[d.severity] || COLORS.sub}>{d.severity}</Badge>
                     </td>
                     <td
-                      className="py-2.5 px-4 font-medium max-w-xs truncate"
+                      className="py-2.5 px-4 font-medium max-w-xs"
                       style={{ color: COLORS.ink }}
-                      title={d.title + (d.description ? `\n\n${d.description}` : "")}
                     >
-                      {d.title}
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="truncate max-w-[220px]"
+                          title={d.title + (d.description ? `\n\n${d.description}` : "")}
+                        >
+                          {d.title}
+                        </span>
+                        {d.attachments && d.attachments.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setViewingAttachmentsDefect(d)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer shrink-0"
+                            title={`${d.attachments.length} attachment(s) — click to view & markup`}
+                          >
+                            <Paperclip size={10} />
+                            <span>{d.attachments.length}</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2.5 px-4">
                       <span
@@ -1679,6 +1706,14 @@ export function Defects() {
                 </div>
               </div>
 
+              {/* Screenshots & File Attachments with Drag & Drop, Ctrl+V, and Markup */}
+              <div className="pt-2 border-t" style={{ borderColor: COLORS.border }}>
+                <DefectAttachmentsSection
+                  attachments={formAttachments}
+                  onChange={setFormAttachments}
+                />
+              </div>
+
               {error && (
                 <div
                   className="text-xs px-3 py-2 rounded-lg"
@@ -1856,6 +1891,14 @@ export function Defects() {
                 />
               </div>
 
+              {/* Screenshots & File Attachments with Drag & Drop, Ctrl+V, and Markup */}
+              <div className="pt-2 border-t" style={{ borderColor: COLORS.border }}>
+                <DefectAttachmentsSection
+                  attachments={editing.attachments || []}
+                  onChange={(newAtts) => setEditing({ ...editing, attachments: newAtts })}
+                />
+              </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor: COLORS.border }}>
                 <button
                   type="button"
@@ -1983,6 +2026,18 @@ export function Defects() {
           currentUser={currentUser}
           onClose={() => setShowBulkUpload(false)}
           onBulkUpload={bulkCreateDefects}
+        />
+      )}
+
+      {/* ==================== DEFECT ATTACHMENTS VIEWER MODAL ==================== */}
+      {viewingAttachmentsDefect && (
+        <DefectAttachmentsViewerModal
+          defect={viewingAttachmentsDefect}
+          onClose={() => setViewingAttachmentsDefect(null)}
+          onUpdateDefect={async (id, patch) => {
+            await updateDefect(id, patch);
+            setViewingAttachmentsDefect((prev) => (prev ? { ...prev, ...patch } : null));
+          }}
         />
       )}
     </div>

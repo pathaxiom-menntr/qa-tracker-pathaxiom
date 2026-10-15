@@ -32,6 +32,15 @@ export interface Project {
   updated_at?: string;
 }
 
+export interface DefectAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  data: string; // base64 data URL
+  uploaded_at: string;
+}
+
 export interface Defect {
   id: string;
   client_name?: string;
@@ -51,6 +60,7 @@ export interface Defect {
   is_deleted?: boolean;
   deleted_at?: string;
   deleted_by?: string;
+  attachments?: DefectAttachment[];
 }
 
 export interface Portal {

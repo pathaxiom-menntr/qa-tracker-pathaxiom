@@ -6,6 +6,7 @@ import {
   Role,
   Project,
   Defect,
+  DefectAttachment,
   Portal,
   BrowserCompat,
   PlatformCompat,
@@ -129,6 +130,7 @@ interface QAStoreType {
     description?: string;
     status?: string;
     assignee?: string;
+    attachments?: DefectAttachment[];
   }) => Promise<void>;
   updateDefect: (id: string, patch: Partial<Defect>) => Promise<void>;
   deleteDefect: (id: string) => Promise<void>;
@@ -454,6 +456,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     description?: string;
     status?: string;
     assignee?: string;
+    attachments?: DefectAttachment[];
   }) => {
     try {
       await ensureValidToken();

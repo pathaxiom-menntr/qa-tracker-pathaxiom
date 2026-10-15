@@ -35,6 +35,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (client_name !== undefined) updates.push(`client_name = '${client_name.replace(/'/g, "''")}'`);
     if (project_name !== undefined) updates.push(`project_name = '${project_name.replace(/'/g, "''")}'`);
     if (project_code !== undefined) updates.push(`project_code = '${project_code.replace(/'/g, "''")}'`);
+    if (body.attachments !== undefined) {
+      const attachmentsJson = JSON.stringify(body.attachments || []).replace(/'/g, "''");
+      updates.push(`attachments = '${attachmentsJson}'::jsonb`);
+    }
     if (body.is_deleted !== undefined) {
       updates.push(`is_deleted = ${body.is_deleted ? "TRUE" : "FALSE"}`);
       if (!body.is_deleted) {
