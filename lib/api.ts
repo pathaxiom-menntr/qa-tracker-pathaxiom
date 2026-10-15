@@ -133,10 +133,20 @@ export const api = {
   },
 
   async restoreDefect(id: string): Promise<any> {
-    return handle(
-      await fetch(`${BASE}/defects/${encodeURIComponent(id)}/restore`, {
+    try {
+      const res = await fetch(`${BASE}/defects/restore`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) return await res.json();
+    } catch {}
+
+    return handle(
+      await fetch(`${BASE}/defects/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify({ is_deleted: false }),
       })
     );
   },
