@@ -231,7 +231,7 @@ export default function Home() {
           <div className="max-w-7xl mx-auto">
             {view === "overview" && <ExecutiveDashboard />}
             {view === "reports" && <Reports />}
-            {view === "testcases" && <TestCases />}
+            {view === "testcases" && <TestCases onNavigate={setView} />}
             {view === "defects" && <Defects />}
             {view === "compatibility" && <CompatibilityBrowsers />}
             {view === "performance" && <Performance />}

@@ -65,6 +65,44 @@ export interface Defect {
   attachments?: DefectAttachment[];
 }
 
+export type TestCaseStatus = "Untested" | "Passed" | "Failed" | "Blocked" | "Skipped";
+
+export interface TestCaseExecution {
+  id: string; // e.g. "TC-101"
+  title: string;
+  module: string;
+  feature?: string;
+  type: "Smoke" | "Functional" | "Regression" | "Security" | "Performance";
+  priority: "Critical" | "High" | "Medium" | "Low";
+  preconditions?: string;
+  steps: string[];
+  expectedResult: string;
+  actualResult?: string;
+  status: TestCaseStatus;
+  executedBy?: string;
+  executedAt?: string;
+  durationMs?: number;
+  defectId?: string; // Linked defect ID if logged (e.g. DEF-042)
+  notes?: string;
+}
+
+export interface TestRun {
+  id: number;
+  run_id: string; // e.g. "RUN-2026-001"
+  title: string;
+  project_name: string;
+  project_code: string;
+  client_name: string;
+  environment: "Staging" | "Production" | "UAT" | "QA / Dev";
+  status: "In Progress" | "Completed" | "Blocked" | "Draft";
+  created_by: string;
+  assigned_to?: string;
+  created_at: string;
+  completed_at?: string;
+  summary?: string;
+  test_cases: TestCaseExecution[];
+}
+
 export interface Portal {
   id: number;
   name: string;

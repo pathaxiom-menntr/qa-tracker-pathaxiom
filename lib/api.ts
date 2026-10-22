@@ -1,4 +1,4 @@
-import { Role, User, Project, Defect, Portal, BrowserCompat, PlatformCompat, VaptFinding, PerfEndpoint, ReportsByKey } from "./types";
+import { Role, User, Project, Defect, Portal, BrowserCompat, PlatformCompat, VaptFinding, PerfEndpoint, ReportsByKey, TestRun } from "./types";
 
 const BASE = "/api";
 
@@ -212,6 +212,40 @@ export const api = {
   async deletePortal(id: number): Promise<any> {
     return handle(
       await fetch(`${BASE}/portals/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  // ==================== TEST RUNS & EXECUTION ====================
+  async getTestRuns(): Promise<{ ok: boolean; testRuns: TestRun[] }> {
+    return handle(await fetch(`${BASE}/test-runs`, { headers: authHeaders() }));
+  },
+
+  async createTestRun(run: Partial<TestRun>): Promise<{ ok: boolean; testRun: TestRun }> {
+    return handle(
+      await fetch(`${BASE}/test-runs`, {
+        method: "POST",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify(run),
+      })
+    );
+  },
+
+  async updateTestRun(id: number, patch: Partial<TestRun>): Promise<{ ok: boolean; testRun: TestRun }> {
+    return handle(
+      await fetch(`${BASE}/test-runs/${id}`, {
+        method: "PUT",
+        headers: { ...jsonHeaders, ...authHeaders() },
+        body: JSON.stringify(patch),
+      })
+    );
+  },
+
+  async deleteTestRun(id: number): Promise<{ ok: boolean }> {
+    return handle(
+      await fetch(`${BASE}/test-runs/${id}`, {
         method: "DELETE",
         headers: authHeaders(),
       })

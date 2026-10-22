@@ -13,6 +13,9 @@ import {
   VaptFinding,
   PerfEndpoint,
   ReportsByKey,
+  TestRun,
+  TestCaseExecution,
+  TestCaseStatus,
 } from "./types";
 import { api } from "./api";
 
@@ -159,6 +162,20 @@ interface QAStoreType {
   uploadReport: (key: string, fileName: string, format: "PDF" | "Excel", comments?: string) => Promise<void>;
   deleteReport: (key: string) => Promise<void>;
 
+  // Test Runs & Execution Cycles
+  testRuns: TestRun[];
+  createTestRun: (run: Partial<TestRun>) => Promise<TestRun>;
+  updateTestRun: (id: number, patch: Partial<TestRun>) => Promise<void>;
+  deleteTestRun: (id: number) => Promise<void>;
+  executeTestCase: (
+    runId: number,
+    testCaseId: string,
+    status: TestCaseStatus,
+    actualResult?: string,
+    notes?: string,
+    defectId?: string
+  ) => Promise<void>;
+
   // Refresh
   refreshAll: () => Promise<void>;
   loading: boolean;
@@ -181,6 +198,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
   const [perfFast, setPerfFast] = useState<PerfEndpoint[]>([]);
   const [perfSlow, setPerfSlow] = useState<PerfEndpoint[]>([]);
   const [reports, setReports] = useState<ReportsByKey>({});
+  const [testRuns, setTestRuns] = useState<TestRun[]>([]);
 
   // Helper to ensure a valid backend token is present
   const ensureValidToken = async (): Promise<string | null> => {
@@ -213,6 +231,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         vaptRes,
         perfRes,
         reportsRes,
+        testRunsRes,
       ] = await Promise.allSettled([
         api.getUsers(),
         api.getProjects(),
@@ -223,6 +242,7 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         api.getVapt(),
         api.getPerformance(),
         api.getReports(),
+        api.getTestRuns(),
       ]);
 
       if (usersRes.status === "fulfilled" && usersRes.value?.users) {
@@ -262,6 +282,9 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
       }
       if (reportsRes.status === "fulfilled" && reportsRes.value?.reports) {
         setReports(reportsRes.value.reports);
+      }
+      if (testRunsRes.status === "fulfilled" && testRunsRes.value?.testRuns) {
+        setTestRuns(testRunsRes.value.testRuns);
       }
     } catch (e) {
       console.error("Failed to refresh live data:", e);
@@ -639,6 +662,103 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Test Runs & Execution Cycles
+  const createTestRun = async (run: Partial<TestRun>): Promise<TestRun> => {
+    try {
+      await ensureValidToken();
+      const res = await api.createTestRun(run);
+      if (res?.testRun) {
+        setTestRuns((prev) => [res.testRun, ...prev]);
+        return res.testRun;
+      }
+      await refreshAll();
+      return res.testRun;
+    } catch (err: any) {
+      console.error("Failed to create test run:", err);
+      throw err;
+    }
+  };
+
+  const updateTestRun = async (id: number, patch: Partial<TestRun>) => {
+    setTestRuns((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+    );
+    try {
+      await ensureValidToken();
+      await api.updateTestRun(id, patch);
+    } catch (err) {
+      console.error("Failed to update test run on server:", err);
+      await refreshAll();
+    }
+  };
+
+  const deleteTestRun = async (id: number) => {
+    setTestRuns((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await ensureValidToken();
+      await api.deleteTestRun(id);
+    } catch (err) {
+      console.error("Failed to delete test run:", err);
+      await refreshAll();
+    }
+  };
+
+  const executeTestCase = async (
+    runId: number,
+    testCaseId: string,
+    status: TestCaseStatus,
+    actualResult?: string,
+    notes?: string,
+    defectId?: string
+  ) => {
+    const targetRun = testRuns.find((r) => r.id === runId);
+    if (!targetRun) return;
+
+    const updatedCases = targetRun.test_cases.map((tc) => {
+      if (tc.id !== testCaseId) return tc;
+      return {
+        ...tc,
+        status,
+        actualResult: actualResult !== undefined ? actualResult : tc.actualResult,
+        notes: notes !== undefined ? notes : tc.notes,
+        defectId: defectId !== undefined ? defectId : tc.defectId,
+        executedBy: currentUser?.name || "QA Tester",
+        executedAt: new Date().toISOString(),
+      };
+    });
+
+    const allTested = updatedCases.every((tc) => tc.status !== "Untested");
+    const hasFailed = updatedCases.some((tc) => tc.status === "Failed");
+    const hasBlocked = updatedCases.some((tc) => tc.status === "Blocked");
+
+    let nextRunStatus = targetRun.status;
+    let completedAt = targetRun.completed_at;
+    if (allTested) {
+      nextRunStatus = hasFailed ? "In Progress" : hasBlocked ? "Blocked" : "Completed";
+      completedAt = targetRun.completed_at || new Date().toISOString();
+    } else {
+      nextRunStatus = "In Progress";
+    }
+
+    const patch: Partial<TestRun> = {
+      test_cases: updatedCases,
+      status: nextRunStatus,
+      completed_at: completedAt,
+    };
+
+    setTestRuns((prev) =>
+      prev.map((r) => (r.id === runId ? { ...r, ...patch } : r))
+    );
+
+    try {
+      await ensureValidToken();
+      await api.updateTestRun(runId, patch);
+    } catch (err) {
+      console.error("Failed to update test run execution:", err);
+      await refreshAll();
+    }
+  };
+
   return (
     <QAStoreContext.Provider
       value={{
@@ -678,6 +798,11 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         reports,
         uploadReport,
         deleteReport,
+        testRuns,
+        createTestRun,
+        updateTestRun,
+        deleteTestRun,
+        executeTestCase,
         refreshAll,
         loading,
       }}
