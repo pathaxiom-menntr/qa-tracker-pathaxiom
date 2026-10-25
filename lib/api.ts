@@ -84,6 +84,25 @@ export const api = {
     return handle(
       await fetch(`${BASE}/users/${id}`, {
         method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async restoreUser(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/users/${id}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgeUser(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/users/${id}?purge=true`, {
+        method: "DELETE",
+        headers: authHeaders(),
       })
     );
   },
@@ -194,6 +213,24 @@ export const api = {
     );
   },
 
+  async restoreProject(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/projects/${id}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgeProject(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/projects/${id}?purge=true`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
   // ==================== PORTALS (TEST CASES) ====================
   async getPortals(): Promise<{ portals: Portal[] }> {
     return handle(await fetch(`${BASE}/portals`));
@@ -212,6 +249,24 @@ export const api = {
   async deletePortal(id: number): Promise<any> {
     return handle(
       await fetch(`${BASE}/portals/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async restorePortal(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/portals/${id}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgePortal(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/portals/${id}?purge=true`, {
         method: "DELETE",
         headers: authHeaders(),
       })
@@ -246,6 +301,24 @@ export const api = {
   async deleteTestRun(id: number): Promise<{ ok: boolean }> {
     return handle(
       await fetch(`${BASE}/test-runs/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async restoreTestRun(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/test-runs/${id}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgeTestRun(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/test-runs/${id}?purge=true`, {
         method: "DELETE",
         headers: authHeaders(),
       })
@@ -305,6 +378,24 @@ export const api = {
     );
   },
 
+  async restoreVapt(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/vapt/${id}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgeVapt(id: number): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/vapt/${id}?purge=true`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
   // ==================== PERFORMANCE ====================
   async getPerformance(): Promise<{ fast: PerfEndpoint[]; slow: PerfEndpoint[] }> {
     return handle(await fetch(`${BASE}/performance`));
@@ -343,6 +434,24 @@ export const api = {
   async deleteReport(key: string): Promise<any> {
     return handle(
       await fetch(`${BASE}/reports/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async restoreReport(key: string): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/reports/${encodeURIComponent(key)}/restore`, {
+        method: "POST",
+        headers: authHeaders(),
+      })
+    );
+  },
+
+  async purgeReport(key: string): Promise<any> {
+    return handle(
+      await fetch(`${BASE}/reports/${encodeURIComponent(key)}?purge=true`, {
         method: "DELETE",
         headers: authHeaders(),
       })

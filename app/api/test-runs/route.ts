@@ -237,7 +237,10 @@ export async function GET() {
     let runs = await queryDb<any>(
       `SELECT id, run_id, title, project_name, project_code, client_name, environment, status, 
               created_by, assigned_to, created_at, completed_at, summary,
-              COALESCE(test_cases, '[]'::jsonb) as test_cases
+              COALESCE(test_cases, '[]'::jsonb) as test_cases,
+              COALESCE(is_deleted, false) as is_deleted,
+              deleted_at,
+              COALESCE(deleted_by, '') as deleted_by
        FROM test_runs
        ORDER BY id DESC`
     );
@@ -266,7 +269,10 @@ export async function GET() {
       runs = await queryDb<any>(
         `SELECT id, run_id, title, project_name, project_code, client_name, environment, status, 
                 created_by, assigned_to, created_at, completed_at, summary,
-                COALESCE(test_cases, '[]'::jsonb) as test_cases
+                COALESCE(test_cases, '[]'::jsonb) as test_cases,
+                COALESCE(is_deleted, false) as is_deleted,
+                deleted_at,
+                COALESCE(deleted_by, '') as deleted_by
          FROM test_runs
          ORDER BY id DESC`
       );

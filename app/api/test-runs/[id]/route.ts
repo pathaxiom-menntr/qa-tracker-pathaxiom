@@ -45,7 +45,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// DELETE /api/test-runs/[id]
+// DELETE /api/test-runs/[id] - Soft delete to Recycle Bin (or permanently purge if ?purge=true)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -53,9 +53,23 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (isNaN(runId)) {
       return NextResponse.json({ error: "Invalid test run ID" }, { status: 400 });
     }
+    const { searchParams } = new URL(req.url);
+    const purge = searchParams.get("purge") === "true";
+    const deletedBy = searchParams.get("deleted_by") || "QA Team";
 
-    await queryDb(`DELETE FROM test_runs WHERE id = ${runId}`);
-    return NextResponse.json({ ok: true, deleted: true });
+    if (purge) {
+      await queryDb(`DELETE FROM test_runs WHERE id = ${runId}`);
+      return NextResponse.json({ ok: true, purged: true, message: `Test run ${runId} permanently purged` });
+    } else {
+      await queryDb(`
+        UPDATE test_runs 
+        SET is_deleted = TRUE, 
+            deleted_at = NOW(), 
+            deleted_by = '${deletedBy.replace(/'/g, "''")}' 
+        WHERE id = ${runId}
+      `);
+      return NextResponse.json({ ok: true, soft_deleted: true, message: `Test run ${runId} moved to Recycle Bin` });
+    }
   } catch (error: any) {
     console.error("DELETE /api/test-runs/[id] error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete test run" }, { status: 500 });

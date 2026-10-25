@@ -106,17 +106,23 @@ interface QAStoreType {
   editUser: (id: number, name: string, email: string, role: Role, password?: string, client_name?: string, assigned_projects?: string[], permissions?: string[]) => Promise<void>;
   toggleUserStatus: (id: number) => Promise<void>;
   deleteUser: (id: number) => Promise<void>;
+  restoreUser: (id: number) => Promise<void>;
+  purgeUser: (id: number) => Promise<void>;
 
   // Projects & Hierarchy (Client -> Project -> Module -> Feature)
   projects: Project[];
   addProject: (project: Partial<Project>) => Promise<void>;
   updateProject: (id: number, patch: Partial<Project>) => Promise<void>;
   deleteProject: (id: number) => Promise<void>;
+  restoreProject: (id: number) => Promise<void>;
+  purgeProject: (id: number) => Promise<void>;
 
   // Portals (Test Cases)
   portals: Portal[];
   createPortal: (name: string) => Promise<void>;
   deletePortal: (id: number) => Promise<void>;
+  restorePortal: (id: number) => Promise<void>;
+  purgePortal: (id: number) => Promise<void>;
 
   // Defects
   defects: Defect[];
@@ -151,6 +157,8 @@ interface QAStoreType {
   createVapt: (finding: Omit<VaptFinding, "id">) => Promise<void>;
   updateVapt: (id: number, patch: Partial<VaptFinding>) => Promise<void>;
   deleteVapt: (id: number) => Promise<void>;
+  restoreVapt: (id: number) => Promise<void>;
+  purgeVapt: (id: number) => Promise<void>;
 
   // Performance
   perfFast: PerfEndpoint[];
@@ -161,12 +169,16 @@ interface QAStoreType {
   reports: ReportsByKey;
   uploadReport: (key: string, fileName: string, format: "PDF" | "Excel", comments?: string) => Promise<void>;
   deleteReport: (key: string) => Promise<void>;
+  restoreReport: (key: string) => Promise<void>;
+  purgeReport: (key: string) => Promise<void>;
 
   // Test Runs & Execution Cycles
   testRuns: TestRun[];
   createTestRun: (run: Partial<TestRun>) => Promise<TestRun>;
   updateTestRun: (id: number, patch: Partial<TestRun>) => Promise<void>;
   deleteTestRun: (id: number) => Promise<void>;
+  restoreTestRun: (id: number) => Promise<void>;
+  purgeTestRun: (id: number) => Promise<void>;
   executeTestCase: (
     runId: number,
     testCaseId: string,
@@ -410,6 +422,24 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const restoreUser = async (id: number) => {
+    try {
+      await api.restoreUser(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to restore user: " + e.message);
+    }
+  };
+
+  const purgeUser = async (id: number) => {
+    try {
+      await api.purgeUser(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to permanently delete user: " + e.message);
+    }
+  };
+
   // Projects
   const addProject = async (project: Partial<Project>) => {
     try {
@@ -444,6 +474,26 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const restoreProject = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.restoreProject(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to restore project: " + e.message);
+    }
+  };
+
+  const purgeProject = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.purgeProject(id);
+      await refreshAll();
+    } catch (e: any) {
+      alert("Failed to permanently delete project: " + e.message);
+    }
+  };
+
   // Portals
   const createPortal = async (name: string) => {
     try {
@@ -459,10 +509,32 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     try {
       await ensureValidToken();
       await api.deletePortal(id);
-      await refreshAll();
+      setPortals((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_deleted: true, deleted_at: new Date().toISOString() } : p))
+      );
     } catch (e: any) {
-      alert("Failed to delete portal: " + e.message);
+      setPortals((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_deleted: true, deleted_at: new Date().toISOString() } : p))
+      );
     }
+  };
+
+  const restorePortal = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.restorePortal(id);
+    } catch {}
+    setPortals((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, is_deleted: false, deleted_at: undefined } : p))
+    );
+  };
+
+  const purgePortal = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.purgePortal(id);
+    } catch {}
+    setPortals((prev) => prev.filter((p) => p.id !== id));
   };
 
   // Defects
@@ -597,10 +669,32 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     try {
       await ensureValidToken();
       await api.deleteVapt(id);
-      await refreshAll();
+      setVapt((prev) =>
+        prev.map((v) => (v.id === id ? { ...v, is_deleted: true, deleted_at: new Date().toISOString() } : v))
+      );
     } catch (e: any) {
-      alert("Failed to delete finding: " + e.message);
+      setVapt((prev) =>
+        prev.map((v) => (v.id === id ? { ...v, is_deleted: true, deleted_at: new Date().toISOString() } : v))
+      );
     }
+  };
+
+  const restoreVapt = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.restoreVapt(id);
+    } catch {}
+    setVapt((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, is_deleted: false, deleted_at: undefined } : v))
+    );
+  };
+
+  const purgeVapt = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.purgeVapt(id);
+    } catch {}
+    setVapt((prev) => prev.filter((v) => v.id !== id));
   };
 
   // Reports
@@ -624,10 +718,39 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
     try {
       await ensureValidToken();
       await api.deleteReport(key);
-      await refreshAll();
+      setReports((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], is_deleted: true, deleted_at: new Date().toISOString() },
+      }));
     } catch (e: any) {
-      alert("Failed to delete report: " + e.message);
+      setReports((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], is_deleted: true, deleted_at: new Date().toISOString() },
+      }));
     }
+  };
+
+  const restoreReport = async (key: string) => {
+    try {
+      await ensureValidToken();
+      await api.restoreReport(key);
+    } catch {}
+    setReports((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], is_deleted: false, deleted_at: undefined },
+    }));
+  };
+
+  const purgeReport = async (key: string) => {
+    try {
+      await ensureValidToken();
+      await api.purgeReport(key);
+    } catch {}
+    setReports((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   // Browsers
@@ -693,13 +816,39 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteTestRun = async (id: number) => {
-    setTestRuns((prev) => prev.filter((r) => r.id !== id));
     try {
       await ensureValidToken();
       await api.deleteTestRun(id);
+      await refreshAll();
     } catch (err) {
       console.error("Failed to delete test run:", err);
+      setTestRuns((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, is_deleted: true, deleted_at: new Date().toISOString() } : r))
+      );
+    }
+  };
+
+  const restoreTestRun = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.restoreTestRun(id);
       await refreshAll();
+    } catch (err) {
+      console.error("Failed to restore test run:", err);
+      setTestRuns((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, is_deleted: false, deleted_at: undefined } : r))
+      );
+    }
+  };
+
+  const purgeTestRun = async (id: number) => {
+    try {
+      await ensureValidToken();
+      await api.purgeTestRun(id);
+      await refreshAll();
+    } catch (err) {
+      console.error("Failed to purge test run:", err);
+      setTestRuns((prev) => prev.filter((r) => r.id !== id));
     }
   };
 
@@ -771,13 +920,19 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         editUser,
         toggleUserStatus,
         deleteUser,
+        restoreUser,
+        purgeUser,
         projects,
         addProject,
         updateProject,
         deleteProject,
+        restoreProject,
+        purgeProject,
         portals,
         createPortal,
         deletePortal,
+        restorePortal,
+        purgePortal,
         defects,
         createDefect,
         updateDefect,
@@ -792,16 +947,22 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         createVapt,
         updateVapt,
         deleteVapt,
+        restoreVapt,
+        purgeVapt,
         perfFast,
         perfSlow,
         addPerfEndpoint,
         reports,
         uploadReport,
         deleteReport,
+        restoreReport,
+        purgeReport,
         testRuns,
         createTestRun,
         updateTestRun,
         deleteTestRun,
+        restoreTestRun,
+        purgeTestRun,
         executeTestCase,
         refreshAll,
         loading,

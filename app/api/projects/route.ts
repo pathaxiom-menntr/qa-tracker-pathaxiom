@@ -11,7 +11,10 @@ export async function GET() {
               COALESCE(modules, '[]'::jsonb) as modules, 
               COALESCE(features, '{}'::jsonb) as features, 
               COALESCE(assigned_user_ids, '[]'::jsonb) as "assigned_user_ids",
-              created_at as "created_at", updated_at as "updated_at"
+              created_at as "created_at", updated_at as "updated_at",
+              COALESCE(is_deleted, false) as "is_deleted",
+              deleted_at,
+              COALESCE(deleted_by, '') as "deleted_by"
        FROM projects
        ORDER BY id ASC`
     );

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ShieldAlert, AlertTriangle, Plus, Pencil, Trash2, X, CheckCircle2 } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Plus, Pencil, Trash2, X, CheckCircle2, RotateCcw } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { VaptFinding, Role } from "@/lib/types";
 
@@ -64,20 +64,26 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone: 
 }
 
 export function SecurityVAPT() {
-  const { vapt, createVapt, updateVapt, deleteVapt, currentUser } = useQAStore();
+  const { vapt, createVapt, updateVapt, deleteVapt, restoreVapt, purgeVapt, currentUser } = useQAStore();
 
+  const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<VaptFinding | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<VaptFinding | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState<VaptFinding | null>(null);
 
   // Form states
   const [title, setTitle] = useState("");
   const [severity, setSeverity] = useState("Major");
   const [status, setStatus] = useState("Open");
 
-  const openCount = vapt.filter((v) => v.status === "Open").length;
-  const majorCount = vapt.filter((v) => v.severity === "Major" || v.severity === "Critical").length;
-  const closedCount = vapt.filter((v) => v.status === "Closed").length;
+  const activeFindings = vapt.filter((v) => !v.is_deleted);
+  const trashFindings = vapt.filter((v) => !!v.is_deleted);
+  const currentList = activeTab === "active" ? activeFindings : trashFindings;
+
+  const openCount = activeFindings.filter((v) => v.status === "Open").length;
+  const majorCount = activeFindings.filter((v) => v.severity === "Major" || v.severity === "Critical").length;
+  const closedCount = activeFindings.filter((v) => v.status === "Closed").length;
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,68 +106,156 @@ export function SecurityVAPT() {
 
   return (
     <div className="space-y-6">
+      {/* Top Stat Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Findings" value={vapt.length} tone={COLORS.accent} />
+        <StatCard label="Total Active Findings" value={activeFindings.length} tone={COLORS.accent} />
         <StatCard label="Major / High" value={majorCount} tone={COLORS.red} />
         <StatCard label="Open Vulnerabilities" value={openCount} tone={COLORS.amber} />
         <StatCard label="Remediated & Closed" value={closedCount} tone={COLORS.green} />
       </div>
 
-      <div className="rounded-xl overflow-hidden" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
-        <div className="p-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+      {/* Main Table Card */}
+      <div className="rounded-xl overflow-hidden shadow-xs" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+        <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
           <div>
             <div className="text-sm font-semibold" style={{ color: COLORS.ink }}>VAPT Findings & Remediation Tracker</div>
             <div className="text-xs" style={{ color: COLORS.sub }}>Security testing vulnerabilities identified during penetration audits</div>
           </div>
-          {canEdit(currentUser?.role) && (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ background: COLORS.accent, color: "#fff" }}
-            >
-              <Plus size={14} />
-              Add Finding
-            </button>
-          )}
+
+          <div className="flex items-center gap-2">
+            {/* Sub-tabs: Active Findings vs Recycle Bin */}
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveTab("active")}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all"
+                style={{
+                  background: activeTab === "active" ? "#FFFFFF" : "transparent",
+                  color: activeTab === "active" ? COLORS.ink : COLORS.sub,
+                  boxShadow: activeTab === "active" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                }}
+              >
+                <span>Active ({activeFindings.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("trash")}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all"
+                style={{
+                  background: activeTab === "trash" ? "#FFFFFF" : "transparent",
+                  color: activeTab === "trash" ? "#DC2626" : COLORS.sub,
+                  boxShadow: activeTab === "trash" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                }}
+              >
+                <Trash2 size={12} className={activeTab === "trash" ? "text-rose-600" : "text-slate-400"} />
+                <span>Recycle Bin ({trashFindings.length})</span>
+              </button>
+            </div>
+
+            {activeTab === "active" && canEdit(currentUser?.role) && (
+              <button
+                onClick={() => setShowAdd(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                style={{ background: COLORS.accent, color: "#fff" }}
+              >
+                <Plus size={14} />
+                Add Finding
+              </button>
+            )}
+          </div>
         </div>
 
-        <table className="w-full text-left text-xs">
-          <thead style={{ background: COLORS.panel2, borderBottom: `1px solid ${COLORS.border}` }}>
-            <tr>
-              <th className="px-4 py-3 font-semibold w-16">#</th>
-              <th className="px-4 py-3 font-semibold">Vulnerability Title</th>
-              <th className="px-4 py-3 font-semibold w-32">Severity</th>
-              <th className="px-4 py-3 font-semibold w-32">Status</th>
-              {canEdit(currentUser?.role) && <th className="px-4 py-3 font-semibold text-right w-24">Actions</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
-            {vapt.map((f, i) => (
-              <tr key={f.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-mono" style={{ color: COLORS.sub }}>{i + 1}</td>
-                <td className="px-4 py-3 font-medium" style={{ color: COLORS.ink }}>{f.title}</td>
-                <td className="px-4 py-3">
-                  <Badge color={SEV_COLOR[f.severity] || COLORS.sub}>{f.severity}</Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <Badge color={STATUS_COLOR[f.status] || COLORS.sub}>{f.status}</Badge>
-                </td>
-                {canEdit(currentUser?.role) && (
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setEditing(f)} className="p-1 rounded hover:bg-slate-100" style={{ color: COLORS.sub }}>
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => setConfirmDelete(f)} className="p-1 rounded hover:bg-red-50" style={{ color: COLORS.red }}>
-                        <Trash2 size={13} />
-                      </button>
+        {currentList.length === 0 ? (
+          <div className="p-10 text-center text-xs text-slate-400">
+            {activeTab === "trash"
+              ? "Recycle Bin is empty. No security findings currently soft-deleted."
+              : "No active findings recorded. Click \"Add Finding\" to log a vulnerability."}
+          </div>
+        ) : (
+          <table className="w-full text-left text-xs">
+            <thead style={{ background: COLORS.panel2, borderBottom: `1px solid ${COLORS.border}` }}>
+              <tr>
+                <th className="px-4 py-3 font-semibold w-16">#</th>
+                <th className="px-4 py-3 font-semibold">Vulnerability Title</th>
+                <th className="px-4 py-3 font-semibold w-32">Severity</th>
+                <th className="px-4 py-3 font-semibold w-32">Status</th>
+                {activeTab === "trash" && <th className="px-4 py-3 font-semibold w-40">Deleted At</th>}
+                {canEdit(currentUser?.role) && <th className="px-4 py-3 font-semibold text-right w-36">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
+              {currentList.map((f, i) => (
+                <tr key={f.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-mono" style={{ color: COLORS.sub }}>{i + 1}</td>
+                  <td className="px-4 py-3 font-medium" style={{ color: COLORS.ink }}>
+                    <div className="flex items-center gap-2">
+                      <span>{f.title}</span>
+                      {f.is_deleted && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          Recycle Bin
+                        </span>
+                      )}
                     </div>
                   </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <td className="px-4 py-3">
+                    <Badge color={SEV_COLOR[f.severity] || COLORS.sub}>{f.severity}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge color={STATUS_COLOR[f.status] || COLORS.sub}>{f.status}</Badge>
+                  </td>
+                  {activeTab === "trash" && (
+                    <td className="px-4 py-3 text-slate-500 font-mono text-[11px]">
+                      {f.deleted_at ? new Date(f.deleted_at).toLocaleDateString() : "Preserved"}
+                    </td>
+                  )}
+                  {canEdit(currentUser?.role) && (
+                    <td className="px-4 py-3 text-right">
+                      {activeTab === "active" ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEditing(f)}
+                            className="p-1 rounded hover:bg-slate-100"
+                            style={{ color: COLORS.sub }}
+                            title="Edit Finding"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(f)}
+                            className="p-1 rounded hover:bg-red-50"
+                            style={{ color: COLORS.red }}
+                            title="Move to Recycle Bin"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => restoreVapt(f.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                            title="Restore Finding"
+                          >
+                            <RotateCcw size={11} />
+                            Restore
+                          </button>
+                          <button
+                            onClick={() => setConfirmPurge(f)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors"
+                            title="Permanently Delete Finding"
+                          >
+                            <Trash2 size={11} />
+                            Purge
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* ADD MODAL */}
@@ -279,16 +373,16 @@ export function SecurityVAPT() {
         </div>
       )}
 
-      {/* CONFIRM DELETE MODAL */}
+      {/* CONFIRM MOVE TO RECYCLE BIN MODAL */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "#000000AA" }} onClick={() => setConfirmDelete(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={16} color={COLORS.red} />
-              <span className="text-sm font-semibold">Delete Security Finding?</span>
+              <Trash2 size={16} color={COLORS.amber} />
+              <span className="text-sm font-semibold">Move Finding to Recycle Bin?</span>
             </div>
-            <p className="text-xs mb-5" style={{ color: COLORS.sub }}>
-              Are you sure you want to delete finding &quot;{confirmDelete.title}&quot;?
+            <p className="text-xs mb-5 text-slate-600 leading-relaxed">
+              Are you sure you want to move &quot;<b>{confirmDelete.title}</b>&quot; to the Recycle Bin? The finding will remain preserved indefinitely and can be restored at any time.
             </p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfirmDelete(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: COLORS.sub }}>Cancel</button>
@@ -297,10 +391,36 @@ export function SecurityVAPT() {
                   deleteVapt(confirmDelete.id);
                   setConfirmDelete(null);
                 }}
-                className="px-4 py-1.5 rounded-lg text-xs font-medium"
-                style={{ background: COLORS.red, color: "#fff" }}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 shadow-sm"
               >
-                Delete
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM PERMANENT PURGE MODAL */}
+      {confirmPurge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "#000000AA" }} onClick={() => setConfirmPurge(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-xl p-5" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={16} color={COLORS.red} />
+              <span className="text-sm font-semibold text-rose-700">Permanently Delete Finding?</span>
+            </div>
+            <p className="text-xs mb-5 text-slate-600 leading-relaxed">
+              <b>Warning:</b> Are you sure you want to permanently wipe &quot;<b>{confirmPurge.title}</b>&quot;? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmPurge(null)} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ color: COLORS.sub }}>Cancel</button>
+              <button
+                onClick={() => {
+                  purgeVapt(confirmPurge.id);
+                  setConfirmPurge(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 shadow-sm"
+              >
+                Permanently Delete
               </button>
             </div>
           </div>

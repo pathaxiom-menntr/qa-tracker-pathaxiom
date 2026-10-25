@@ -66,11 +66,14 @@ export async function PUT(req: Request, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/users/:id - Delete user from PostgreSQL
+// DELETE /api/users/:id - Soft delete to Recycle Bin (or permanently purge if ?purge=true)
 export async function DELETE(req: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const userId = parseInt(id, 10);
+    const { searchParams } = new URL(req.url);
+    const purge = searchParams.get("purge") === "true";
+    const deletedBy = searchParams.get("deleted_by") || "Admin";
 
     // Prevent deleting the predefined Super Admin
     const targetUser = await queryDb<{ role: string }>(`SELECT role FROM users WHERE id = ${userId}`);
@@ -81,8 +84,19 @@ export async function DELETE(req: Request, { params }: RouteParams) {
       );
     }
 
-    await execDb(`DELETE FROM users WHERE id = ${userId}`);
-    return NextResponse.json({ ok: true, message: `User ${userId} deleted` });
+    if (purge) {
+      await execDb(`DELETE FROM users WHERE id = ${userId}`);
+      return NextResponse.json({ ok: true, purged: true, message: `User ${userId} permanently purged` });
+    } else {
+      await execDb(`
+        UPDATE users 
+        SET is_deleted = TRUE, 
+            deleted_at = NOW(), 
+            deleted_by = '${deletedBy.replace(/'/g, "''")}' 
+        WHERE id = ${userId}
+      `);
+      return NextResponse.json({ ok: true, soft_deleted: true, message: `User ${userId} moved to Recycle Bin` });
+    }
   } catch (error: any) {
     console.error("DELETE /api/users/[id] error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete user" }, { status: 500 });

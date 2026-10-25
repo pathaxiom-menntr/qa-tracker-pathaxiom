@@ -33,7 +33,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// DELETE /api/projects/[id] - Delete a project
+// DELETE /api/projects/[id] - Soft delete to Recycle Bin (or permanently purge if ?purge=true)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -41,9 +41,23 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (isNaN(projId)) {
       return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
     }
+    const { searchParams } = new URL(req.url);
+    const purge = searchParams.get("purge") === "true";
+    const deletedBy = searchParams.get("deleted_by") || "Admin";
 
-    await queryDb(`DELETE FROM projects WHERE id = ${projId}`);
-    return NextResponse.json({ ok: true, deleted: true });
+    if (purge) {
+      await queryDb(`DELETE FROM projects WHERE id = ${projId}`);
+      return NextResponse.json({ ok: true, purged: true, message: `Project ${projId} permanently purged` });
+    } else {
+      await queryDb(`
+        UPDATE projects 
+        SET is_deleted = TRUE, 
+            deleted_at = NOW(), 
+            deleted_by = '${deletedBy.replace(/'/g, "''")}' 
+        WHERE id = ${projId}
+      `);
+      return NextResponse.json({ ok: true, soft_deleted: true, message: `Project ${projId} moved to Recycle Bin` });
+    }
   } catch (error: any) {
     console.error("DELETE /api/projects/[id] error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete project" }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Users,
   UserPlus,
@@ -22,6 +22,8 @@ import {
   ListChecks,
   Activity,
   CheckCircle2,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Role, User } from "@/lib/types";
@@ -187,7 +189,12 @@ function StatCard({
 }
 
 export function UserManagement() {
-  const { users, addUser, editUser, toggleUserStatus, deleteUser, currentUser } = useQAStore();
+  const { users, addUser, editUser, toggleUserStatus, deleteUser, restoreUser, purgeUser, currentUser } = useQAStore();
+
+  const [viewTab, setViewTab] = useState<"active" | "trash">("active");
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
+  const [confirmPurgeUser, setConfirmPurgeUser] = useState<User | null>(null);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
@@ -207,20 +214,26 @@ export function UserManagement() {
     ? ["QA Manager", "QA Lead", "QA Engineer", "Client"]
     : [];
 
-  // Filtered users list
-  const filteredUsers = users.filter((u) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q);
-    const matchesRole = roleFilter === "ALL" || u.role === roleFilter;
-    const matchesStatus = statusFilter === "ALL" || u.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const activeUsers = useMemo(() => users.filter((u) => !u.is_deleted), [users]);
+  const trashUsers = useMemo(() => users.filter((u) => !!u.is_deleted), [users]);
 
-  const activeCount = users.filter((u) => u.status === "active").length;
-  const deactivatedCount = users.filter((u) => u.status === "deactivated").length;
+  // Filtered users list based on active sub-tab
+  const filteredUsers = useMemo(() => {
+    const baseList = viewTab === "active" ? activeUsers : trashUsers;
+    return baseList.filter((u) => {
+      const q = search.toLowerCase();
+      const matchesSearch =
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q);
+      const matchesRole = roleFilter === "ALL" || u.role === roleFilter;
+      const matchesStatus = statusFilter === "ALL" || u.status === statusFilter;
+      return matchesSearch && matchesRole && matchesStatus;
+    });
+  }, [viewTab, activeUsers, trashUsers, search, roleFilter, statusFilter]);
+
+  const activeCount = activeUsers.filter((u) => u.status === "active").length;
+  const deactivatedCount = activeUsers.filter((u) => u.status === "deactivated").length;
 
   // Check if current user can manage/edit/delete a target user
   const canManageTargetUser = (target: User) => {
@@ -271,17 +284,71 @@ export function UserManagement() {
         </span>
       </div>
 
+      {/* Sub-Tab Navigation: Active Users vs Recycle Bin */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewTab("active")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              viewTab === "active"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Users size={14} />
+            <span>Active Users</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                viewTab === "active" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {activeUsers.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setViewTab("trash")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              viewTab === "trash"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Trash2 size={14} />
+            <span>Recycle Bin (Trash)</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                viewTab === "trash" ? "bg-white/20 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"
+              }`}
+            >
+              {trashUsers.length}
+            </span>
+          </button>
+        </div>
+
+        {canCreateUsers && viewTab === "active" && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-white shadow-sm transition-all"
+            style={{ background: COLORS.accent }}
+          >
+            <UserPlus size={14} />
+            <span>Add User</span>
+          </button>
+        )}
+      </div>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Total Users"
-          value={users.length}
+          label="Active Users"
+          value={activeUsers.length}
           sub="Registered accounts in PostgreSQL"
           icon={Users}
           tone={COLORS.accent}
         />
         <StatCard
-          label="Active Users"
+          label="Active Access"
           value={activeCount}
           sub="Granted active system access"
           icon={UserCheck}
@@ -295,11 +362,11 @@ export function UserManagement() {
           tone={COLORS.red}
         />
         <StatCard
-          label="QA & Testing Roles"
-          value={users.filter((u) => u.role.includes("QA")).length}
-          sub="QA Engineers, Leads & Managers"
-          icon={Shield}
-          tone={COLORS.teal}
+          label="Recycle Bin"
+          value={trashUsers.length}
+          sub="Soft-deleted accounts (restorable)"
+          icon={Trash2}
+          tone={COLORS.amber}
         />
       </div>
 
@@ -396,16 +463,22 @@ export function UserManagement() {
                 <th className="py-3 px-4 font-semibold">User</th>
                 <th className="py-3 px-4 font-semibold">Role</th>
                 <th className="py-3 px-4 font-semibold">Status</th>
-                <th className="py-3 px-4 font-semibold">Permissions / Privileges</th>
-                <th className="py-3 px-4 font-semibold">Created Date</th>
+                <th className="py-3 px-4 font-semibold">
+                  {viewTab === "trash" ? "Deleted Info" : "Permissions / Privileges"}
+                </th>
+                <th className="py-3 px-4 font-semibold">
+                  {viewTab === "trash" ? "Deleted Date" : "Created Date"}
+                </th>
                 <th className="py-3 px-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-xs" style={{ color: COLORS.sub }}>
-                    No users matching criteria.
+                  <td colSpan={6} className="py-12 text-center text-xs" style={{ color: COLORS.sub }}>
+                    {viewTab === "trash"
+                      ? "Recycle Bin is empty. No deleted user accounts."
+                      : "No users matching criteria."}
                   </td>
                 </tr>
               ) : (
@@ -490,40 +563,80 @@ export function UserManagement() {
                         </span>
                       </td>
 
-                      {/* Permissions Column */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-wrap items-center gap-1 max-w-xs">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            {userPerms.length} {userPerms.length === 1 ? "Privilege" : "Privileges"}
+                      {/* Permissions / Deleted Info Column */}
+                      {viewTab === "trash" ? (
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                            Deleted by: <b>{u.deleted_by || "Admin"}</b>
                           </span>
-                          {userPerms.slice(0, 3).map((p: string) => {
-                            const label = PERMISSION_LABELS[p] || p.split(":")[1] || p;
-                            return (
-                              <span
-                                key={p}
-                                className="px-1.5 py-0.5 rounded text-[9px] bg-slate-100 text-slate-600 font-medium truncate max-w-[85px]"
-                                title={label}
-                              >
-                                {label}
-                              </span>
-                            );
-                          })}
-                          {userPerms.length > 3 && (
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              +{userPerms.length - 3} more
+                        </td>
+                      ) : (
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap items-center gap-1 max-w-xs">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {userPerms.length} {userPerms.length === 1 ? "Privilege" : "Privileges"}
                             </span>
-                          )}
-                        </div>
-                      </td>
+                            {userPerms.slice(0, 3).map((p: string) => {
+                              const label = PERMISSION_LABELS[p] || p.split(":")[1] || p;
+                              return (
+                                <span
+                                  key={p}
+                                  className="px-1.5 py-0.5 rounded text-[9px] bg-slate-100 text-slate-600 font-medium truncate max-w-[85px]"
+                                  title={label}
+                                >
+                                  {label}
+                                </span>
+                              );
+                            })}
+                            {userPerms.length > 3 && (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                +{userPerms.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      )}
 
                       <td className="py-3.5 px-4" style={{ color: COLORS.sub }}>
                         <div className="flex items-center gap-1">
                           <Calendar size={12} />
-                          {u.createdAt ? u.createdAt.slice(0, 10) : "2026-09-24"}
+                          {viewTab === "trash" && u.deleted_at
+                            ? new Date(u.deleted_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                            : u.createdAt ? u.createdAt.slice(0, 10) : "2026-09-24"}
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        {canManage ? (
+                        {viewTab === "trash" ? (
+                          <div className="flex items-center justify-end gap-2">
+                            {/* 1-Click Restore Button */}
+                            <button
+                              onClick={async () => {
+                                setRestoringId(u.id);
+                                try {
+                                  await restoreUser(u.id);
+                                } finally {
+                                  setRestoringId(null);
+                                }
+                              }}
+                              disabled={restoringId === u.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                              title="Restore user back to active system access"
+                            >
+                              <RotateCcw size={12} />
+                              <span>{restoringId === u.id ? "Restoring..." : "Restore"}</span>
+                            </button>
+
+                            {/* Permanently Delete Button */}
+                            <button
+                              onClick={() => setConfirmPurgeUser(u)}
+                              disabled={isCurrent}
+                              className="p-1.5 rounded-md hover:bg-red-50 text-red-600 border border-red-200 transition-colors cursor-pointer"
+                              title="Permanently purge user from PostgreSQL database"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : canManage ? (
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Edit User Button */}
                             <button
@@ -556,13 +669,9 @@ export function UserManagement() {
                               {u.status === "active" ? "Deactivate" : "Activate"}
                             </button>
 
-                            {/* Delete Button */}
+                            {/* Delete / Move to Recycle Bin Button */}
                             <button
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to permanently delete user "${u.name}" from PostgreSQL?`)) {
-                                  deleteUser(u.id);
-                                }
-                              }}
+                              onClick={() => setConfirmDeleteUser(u)}
                               disabled={isCurrent}
                               className="p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer"
                               style={{
@@ -570,7 +679,7 @@ export function UserManagement() {
                                 opacity: isCurrent ? 0.3 : 1,
                                 cursor: isCurrent ? "not-allowed" : "pointer",
                               }}
-                              title={isCurrent ? "Cannot delete yourself" : "Delete user from PostgreSQL"}
+                              title={isCurrent ? "Cannot delete yourself" : "Move user to Recycle Bin"}
                             >
                               <Trash2 size={14} />
                             </button>
@@ -589,6 +698,99 @@ export function UserManagement() {
           </table>
         </div>
       </div>
+
+      {/* Confirmation Modal: Move User to Recycle Bin */}
+      {confirmDeleteUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "#00000077" }}
+          onClick={() => setConfirmDeleteUser(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl p-5 shadow-xl"
+            style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+          >
+            <div className="flex items-center gap-2 mb-3 text-amber-600">
+              <Trash2 size={18} />
+              <span className="text-sm font-semibold">Move User to Recycle Bin?</span>
+            </div>
+            <p className="text-xs mb-2 text-slate-700">
+              Are you sure you want to move <b>{confirmDeleteUser.name}</b> (<code>{confirmDeleteUser.email}</code>) to the Recycle Bin?
+            </p>
+            <p className="text-[11px] mb-5 text-slate-500">
+              The user account will be deactivated and hidden from active views. It will stay in the Recycle Bin indefinitely and can be restored at any time.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteUser(null)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+                style={{ color: COLORS.sub }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await deleteUser(confirmDeleteUser.id);
+                  setConfirmDeleteUser(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm cursor-pointer"
+                style={{ background: COLORS.amber }}
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal: Permanently Purge User */}
+      {confirmPurgeUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "#00000088" }}
+          onClick={() => setConfirmPurgeUser(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl p-5 shadow-2xl border border-red-200"
+            style={{ background: COLORS.panel }}
+          >
+            <div className="flex items-center gap-2 mb-3 text-red-600">
+              <AlertTriangle size={18} />
+              <span className="text-sm font-bold">Permanently Delete User?</span>
+            </div>
+            <p className="text-xs mb-2 text-slate-800">
+              Permanently delete <b>{confirmPurgeUser.name}</b> (<code>{confirmPurgeUser.email}</code>) from the PostgreSQL database?
+            </p>
+            <div className="p-3 rounded-lg bg-red-50 text-red-700 text-[11px] mb-5 border border-red-200 leading-relaxed">
+              ⚠️ <b>Warning:</b> This action CANNOT be undone. All credentials, roles, and user assignments will be permanently destroyed.
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmPurgeUser(null)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+                style={{ color: COLORS.sub }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await purgeUser(confirmPurgeUser.id);
+                  setConfirmPurgeUser(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm cursor-pointer bg-red-600 hover:bg-red-700"
+              >
+                Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add User Modal */}
       {showAddModal && (

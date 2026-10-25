@@ -5,9 +5,11 @@ import {
   Search,
   Upload,
   X,
+  AlertTriangle,
   Eye,
   Download,
   RefreshCw,
+  RotateCcw,
   Trash2,
   File,
   FileText,
@@ -118,9 +120,12 @@ function ActionBtn({
 }
 
 export function Reports() {
-  const { reports, uploadReport, deleteReport, defects, currentUser } = useQAStore();
+  const { reports, uploadReport, deleteReport, restoreReport, purgeReport, defects, currentUser } = useQAStore();
+  const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
   const [q, setQ] = useState("");
   const [activeUpload, setActiveUpload] = useState<string | null>(null);
+  const [reportToDelete, setReportToDelete] = useState<{ key: string; name: string } | null>(null);
+  const [reportToPurge, setReportToPurge] = useState<{ key: string; name: string } | null>(null);
   const [preview, setPreview] = useState<{
     name: string;
     format: "PDF" | "Excel";
@@ -205,7 +210,14 @@ export function Reports() {
   const filtered = REPORT_TYPES.filter((r) =>
     r.name.toLowerCase().includes(q.toLowerCase())
   );
-  const uploadedCount = Object.keys(reports).length;
+  const activeUploadedCount = Object.values(reports).filter((r) => !r.is_deleted).length;
+  const trashReports = Object.entries(reports)
+    .filter(([_, r]) => !!r?.is_deleted)
+    .map(([key, r]) => ({
+      key,
+      ...r,
+      typeInfo: REPORT_TYPES.find((rt) => rt.key === key) || { name: key, desc: "" },
+    }));
 
   const handleDownload = (fileName: string) => {
     const blob = new Blob([`Report Content: ${fileName}\nExported from QA Tracker Suite`], {
@@ -223,33 +235,68 @@ export function Reports() {
 
   return (
     <div className="space-y-5">
-      {/* Search and Counts Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg flex-1 min-w-[240px] max-w-md"
-          style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
-        >
-          <Search size={14} color={COLORS.sub} />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search report types…"
-            className="bg-transparent outline-none text-sm flex-1"
-            style={{ color: COLORS.ink }}
-          />
+      {/* Sub-tabs: Active Reports vs Recycle Bin */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab("active")}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{
+              background: activeTab === "active" ? "#FFFFFF" : "transparent",
+              color: activeTab === "active" ? COLORS.ink : COLORS.sub,
+              boxShadow: activeTab === "active" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+            }}
+          >
+            <FileText size={13} className={activeTab === "active" ? "text-indigo-600" : "text-slate-400"} />
+            <span>Active Reports ({REPORT_TYPES.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("trash")}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{
+              background: activeTab === "trash" ? "#FFFFFF" : "transparent",
+              color: activeTab === "trash" ? "#DC2626" : COLORS.sub,
+              boxShadow: activeTab === "trash" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+            }}
+          >
+            <Trash2 size={13} className={activeTab === "trash" ? "text-rose-600" : "text-slate-400"} />
+            <span>Recycle Bin ({trashReports.length})</span>
+          </button>
         </div>
+
         <div className="flex items-center gap-3 text-xs" style={{ color: COLORS.sub }}>
           <span>
-            <b>{uploadedCount}</b> of <b>{REPORT_TYPES.length}</b> report types have an uploaded version
+            <b>{activeUploadedCount}</b> of <b>{REPORT_TYPES.length}</b> report types have an active uploaded document
           </span>
           <Badge color={COLORS.sky}>{currentUser?.role || "QA Team"}</Badge>
         </div>
       </div>
 
-      {/* Grid of Report Cards */}
+      {activeTab === "active" ? (
+        <>
+          {/* Search Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg flex-1 min-w-[240px] max-w-md"
+              style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+            >
+              <Search size={14} color={COLORS.sub} />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search report types…"
+                className="bg-transparent outline-none text-sm flex-1"
+                style={{ color: COLORS.ink }}
+              />
+            </div>
+          </div>
+
+          {/* Grid of Report Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((rt) => {
-          const rec = reports[rt.key];
+          const rec = reports[rt.key] && !reports[rt.key]?.is_deleted ? reports[rt.key] : null;
           const Icon = rt.icon;
           return (
             <div
@@ -333,11 +380,7 @@ export function Reports() {
                       icon={Trash2}
                       label="Delete"
                       tone={COLORS.red}
-                      onClick={() => {
-                        if (confirm(`Remove the ${rt.name} document?`)) {
-                          deleteReport(rt.key);
-                        }
-                      }}
+                      onClick={() => setReportToDelete({ key: rt.key, name: rt.name })}
                     />
                   </div>
                 </>
@@ -380,6 +423,74 @@ export function Reports() {
           );
         })}
       </div>
+      </>
+      ) : (
+        /* Recycle Bin View for Reports */
+        <div className="rounded-xl overflow-hidden shadow-xs" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
+          <div className="p-4 border-b border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800">Recycle Bin — Preserved Reports</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Soft-deleted reports are kept permanently here. They can be restored at any time or manually wiped.
+            </p>
+          </div>
+
+          {trashReports.length === 0 ? (
+            <div className="p-12 text-center text-xs text-slate-400">
+              Recycle Bin is empty. No report documents currently soft-deleted.
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead style={{ background: COLORS.panel2, borderBottom: `1px solid ${COLORS.border}` }}>
+                <tr>
+                  <th className="px-4 py-3 font-semibold w-16">#</th>
+                  <th className="px-4 py-3 font-semibold">Report Type</th>
+                  <th className="px-4 py-3 font-semibold">File Name</th>
+                  <th className="px-4 py-3 font-semibold w-24">Format</th>
+                  <th className="px-4 py-3 font-semibold w-36">Uploaded By</th>
+                  <th className="px-4 py-3 font-semibold w-36">Deleted Date</th>
+                  <th className="px-4 py-3 font-semibold text-right w-36">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
+                {trashReports.map((r, i) => (
+                  <tr key={r.key} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-mono text-slate-400">{i + 1}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">{r.typeInfo.name}</td>
+                    <td className="px-4 py-3 text-slate-600 font-mono text-[11px]">{r.fileName}</td>
+                    <td className="px-4 py-3">
+                      <Badge color={r.format === "PDF" ? COLORS.red : COLORS.green}>{r.format}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{r.uploadedBy}</td>
+                    <td className="px-4 py-3 text-slate-500 font-mono text-[11px]">
+                      {r.deleted_at ? new Date(r.deleted_at).toLocaleDateString() : "Preserved"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => restoreReport(r.key)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                        >
+                          <RotateCcw size={11} />
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReportToPurge({ key: r.key, name: r.typeInfo.name })}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors"
+                        >
+                          <Trash2 size={11} />
+                          Purge
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Upload Modal */}
       {activeUpload && (
@@ -395,6 +506,88 @@ export function Reports() {
 
       {/* Preview Modal */}
       {preview && <PreviewModal preview={preview} onClose={() => setPreview(null)} />}
+
+      {/* Modal: Move Report to Recycle Bin */}
+      {reportToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setReportToDelete(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-xl p-5 shadow-2xl"
+            style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Trash2 size={16} color={COLORS.amber} />
+              <span className="text-sm font-semibold">Move Report to Recycle Bin?</span>
+            </div>
+            <p className="text-xs mb-5 text-slate-600 leading-relaxed">
+              Are you sure you want to move the document for &quot;<b>{reportToDelete.name}</b>&quot; to the Recycle Bin? It will remain preserved indefinitely and can be restored at any time.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReportToDelete(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await deleteReport(reportToDelete.key);
+                  setReportToDelete(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 shadow-sm"
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Permanently Purge Report */}
+      {reportToPurge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setReportToPurge(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-xl p-5 shadow-2xl"
+            style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={16} color={COLORS.red} />
+              <span className="text-sm font-semibold text-rose-700">Permanently Delete Report?</span>
+            </div>
+            <p className="text-xs mb-5 text-slate-600 leading-relaxed">
+              <b>Warning:</b> Are you sure you want to permanently erase the document for &quot;<b>{reportToPurge.name}</b>&quot;? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReportToPurge(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await purgeReport(reportToPurge.key);
+                  setReportToPurge(null);
+                }}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm"
+              >
+                Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

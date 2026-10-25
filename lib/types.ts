@@ -17,6 +17,9 @@ export interface User {
   permissions?: string[];
   createdAt: string;
   createdBy?: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface Project {
@@ -32,6 +35,9 @@ export interface Project {
   assigned_user_ids?: (number | string)[];
   created_at?: string;
   updated_at?: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface DefectAttachment {
@@ -101,6 +107,9 @@ export interface TestRun {
   completed_at?: string;
   summary?: string;
   test_cases: TestCaseExecution[];
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface Portal {
@@ -115,6 +124,9 @@ export interface Portal {
   lowP: number | null;
   passed: number | null;
   failed: number | null;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface BrowserCompat {
@@ -138,6 +150,9 @@ export interface VaptFinding {
   title: string;
   severity: string;
   status: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export interface PerfEndpoint {
@@ -156,6 +171,7 @@ export interface PerfEndpoint {
 }
 
 export interface ReportEntry {
+  key?: string;
   fileName: string;
   format: "PDF" | "Excel";
   size: string;
@@ -164,6 +180,9 @@ export interface ReportEntry {
   version: string;
   comments: string;
   hasBlob: boolean;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 export type ReportsByKey = Record<string, ReportEntry>;

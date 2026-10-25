@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   Info,
+  Trash2,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Role } from "@/lib/types";
@@ -34,6 +35,7 @@ import { Performance } from "@/components/modules/Performance";
 import { SecurityVAPT } from "@/components/modules/SecurityVAPT";
 import { UserManagement } from "@/components/modules/UserManagement";
 import { ProjectManagement } from "@/components/modules/ProjectManagement";
+import { GlobalRecycleBin } from "@/components/modules/GlobalRecycleBin";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -59,6 +61,7 @@ const NAV = [
   { key: "security", label: "Security (VAPT)", icon: ShieldAlert },
   { key: "users", label: "User Management", icon: Users },
   { key: "projects", label: "Project Management", icon: FolderGit2 },
+  { key: "recyclebin", label: "Recycle Bin", icon: Trash2 },
 ];
 
 export default function Home() {
@@ -78,6 +81,7 @@ export default function Home() {
       if (n.key === "compatibility") return hasPermission(currentUser, "browsers:access");
       if (n.key === "performance") return hasPermission(currentUser, "performance:access");
       if (n.key === "security") return hasPermission(currentUser, "vapt:access");
+      if (n.key === "recyclebin") return currentUser.role !== "Client";
       return true;
     });
   }, [currentUser]);
@@ -238,6 +242,7 @@ export default function Home() {
             {view === "security" && <SecurityVAPT />}
             {view === "users" && <UserManagement />}
             {view === "projects" && <ProjectManagement />}
+            {view === "recyclebin" && <GlobalRecycleBin onNavigate={setView} />}
           </div>
         </main>
       </div>

@@ -7,7 +7,13 @@ export async function GET() {
   try {
     await execDb("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions jsonb DEFAULT '[]'::jsonb;").catch(() => {});
     const users = await queryDb(
-      `SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, COALESCE(permissions, '[]'::jsonb) as permissions, created_at as "createdAt"
+      `SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, 
+              COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, 
+              COALESCE(permissions, '[]'::jsonb) as permissions, 
+              created_at as "createdAt",
+              COALESCE(is_deleted, false) as is_deleted,
+              deleted_at,
+              COALESCE(deleted_by, '') as deleted_by
        FROM users
        ORDER BY id DESC`
     );

@@ -224,6 +224,8 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
     createTestRun,
     updateTestRun,
     deleteTestRun,
+    restoreTestRun,
+    purgeTestRun,
     executeTestCase,
     projects,
     users,
@@ -232,10 +234,23 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
     portals,
     createPortal,
     deletePortal,
+    restorePortal,
+    purgePortal,
+    currentUser,
   } = useQAStore();
 
   // Active top-level sub-tab
   const [activeTab, setActiveTab] = useState<"runs" | "repository" | "portals">("runs");
+
+  // Recycle bin sub-tab states
+  const [runSubTab, setRunSubTab] = useState<"active" | "trash">("active");
+  const [portalSubTab, setPortalSubTab] = useState<"active" | "trash">("active");
+
+  // Deletion modals state
+  const [runToDelete, setRunToDelete] = useState<TestRun | null>(null);
+  const [runToPurge, setRunToPurge] = useState<TestRun | null>(null);
+  const [portalToDelete, setPortalToDelete] = useState<Portal | null>(null);
+  const [portalToPurge, setPortalToPurge] = useState<Portal | null>(null);
 
   // Selected test run for active execution
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
@@ -287,19 +302,27 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
   const [newPortalName, setNewPortalName] = useState("");
   const [portalError, setPortalError] = useState("");
 
+  // Active vs Deleted pools
+  const activeTestRuns = useMemo(() => testRuns.filter((r) => !r.is_deleted), [testRuns]);
+  const deletedTestRuns = useMemo(() => testRuns.filter((r) => !!r.is_deleted), [testRuns]);
+  const activePortals = useMemo(() => portals.filter((p) => !p.is_deleted), [portals]);
+  const deletedPortals = useMemo(() => portals.filter((p) => !!p.is_deleted), [portals]);
+
+  const currentRunsPool = runSubTab === "active" ? activeTestRuns : deletedTestRuns;
+
   // Determine active run
   const activeRun = useMemo(() => {
-    if (testRuns.length === 0) return null;
+    if (currentRunsPool.length === 0) return null;
     if (selectedRunId !== null) {
-      const found = testRuns.find((r) => r.id === selectedRunId);
+      const found = currentRunsPool.find((r) => r.id === selectedRunId);
       if (found) return found;
     }
-    return testRuns[0];
-  }, [testRuns, selectedRunId]);
+    return currentRunsPool[0];
+  }, [currentRunsPool, selectedRunId]);
 
   // Filter test runs
   const filteredRuns = useMemo(() => {
-    return testRuns.filter((r) => {
+    return currentRunsPool.filter((r) => {
       const matchSearch =
         runSearch === "" ||
         r.title.toLowerCase().includes(runSearch.toLowerCase()) ||
@@ -310,7 +333,7 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
       const matchStatus = statusFilter === "All" || r.status === statusFilter;
       return matchSearch && matchEnv && matchProject && matchStatus;
     });
-  }, [testRuns, runSearch, envFilter, projectFilter, statusFilter]);
+  }, [currentRunsPool, runSearch, envFilter, projectFilter, statusFilter]);
 
   // Compute metrics for active run
   const runMetrics = useMemo(() => {
@@ -567,15 +590,13 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
 
   const handleDeletePortal = () => {
     if (portal === "All") return;
-    const target = portals.find((p) => p.name === portal);
+    const target = activePortals.find((p) => p.name === portal);
     if (!target) return;
-    if (window.confirm(`Are you sure you want to delete "${target.name}"?`)) {
-      deletePortal(target.id);
-      setPortal("All");
-    }
+    setPortalToDelete(target);
   };
 
-  const filteredPortals = portal === "All" ? portals : portals.filter((p) => p.name === portal);
+  const currentPortalsPool = portalSubTab === "active" ? activePortals : deletedPortals;
+  const filteredPortals = portal === "All" ? currentPortalsPool : currentPortalsPool.filter((p) => p.name === portal);
 
   return (
     <div className="space-y-6">
@@ -652,12 +673,42 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
           {/* Filter & Run Selector Bar */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
             <div className="lg:col-span-1 space-y-3">
+              {/* Sub-tabs: Active Cycles vs Recycle Bin */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setRunSubTab("active")}
+                  className="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+                  style={{
+                    background: runSubTab === "active" ? "#FFFFFF" : "transparent",
+                    color: runSubTab === "active" ? COLORS.ink : COLORS.sub,
+                    boxShadow: runSubTab === "active" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                  }}
+                >
+                  <Activity size={13} className={runSubTab === "active" ? "text-indigo-600" : "text-slate-400"} />
+                  <span>Active ({activeTestRuns.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRunSubTab("trash")}
+                  className="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+                  style={{
+                    background: runSubTab === "trash" ? "#FFFFFF" : "transparent",
+                    color: runSubTab === "trash" ? "#DC2626" : COLORS.sub,
+                    boxShadow: runSubTab === "trash" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                  }}
+                >
+                  <Trash2 size={13} className={runSubTab === "trash" ? "text-rose-600" : "text-slate-400"} />
+                  <span>Recycle Bin ({deletedTestRuns.length})</span>
+                </button>
+              </div>
+
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Execution Cycles ({filteredRuns.length})
+                  {runSubTab === "active" ? "Active Cycles" : "Recycle Bin Cycles"} ({filteredRuns.length})
                 </span>
                 <span className="text-[11px] font-medium text-slate-400">
-                  {testRuns.filter((r) => r.status === "In Progress").length} active
+                  {runSubTab === "active" ? `${activeTestRuns.filter((r) => r.status === "In Progress").length} in progress` : `${deletedTestRuns.length} preserved`}
                 </span>
               </div>
 
@@ -781,22 +832,64 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
                     style={{ background: COLORS.panel, borderColor: COLORS.border }}
                   >
                     <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          {activeRun.run_id}
-                        </span>
-                        <EnvironmentBadge env={activeRun.environment} />
-                        <span
-                          className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
-                            activeRun.status === "Completed"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : activeRun.status === "Blocked"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200"
-                          }`}
-                        >
-                          {activeRun.status}
-                        </span>
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {activeRun.run_id}
+                          </span>
+                          <EnvironmentBadge env={activeRun.environment} />
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
+                              activeRun.status === "Completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : activeRun.status === "Blocked"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}
+                          >
+                            {activeRun.status}
+                          </span>
+                          {activeRun.is_deleted && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                              <Trash2 size={12} />
+                              In Recycle Bin
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Action Buttons: Delete / Restore */}
+                        <div>
+                          {activeRun.is_deleted ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => restoreTestRun(activeRun.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                              >
+                                <RotateCcw size={13} />
+                                Restore Cycle
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRunToPurge(activeRun)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
+                              >
+                                <Trash2 size={13} />
+                                Permanently Delete
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setRunToDelete(activeRun)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition-all"
+                              title="Move to Recycle Bin"
+                            >
+                              <Trash2 size={13} />
+                              Move to Recycle Bin
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <h2 className="text-lg font-bold tracking-tight" style={{ color: COLORS.ink }}>
@@ -867,6 +960,40 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
                       </div>
                     </div>
                   </div>
+
+                  {activeRun.is_deleted && (
+                    <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold text-amber-900">
+                            Execution Cycle in Recycle Bin
+                          </div>
+                          <div className="text-[11px] text-amber-700">
+                            This test run was soft-deleted. It will NOT be deleted automatically and can be restored at any time.
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => restoreTestRun(activeRun.id)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm inline-flex items-center gap-1.5"
+                        >
+                          <RotateCcw size={13} />
+                          Restore Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRunToPurge(activeRun)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-rose-700 border border-rose-200 hover:bg-rose-50 transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <Trash2 size={13} />
+                          Permanently Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Filter & Search Bar within active run */}
                   <div
@@ -1220,7 +1347,7 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {portals.map((p) => (
+            {activePortals.map((p) => (
               <div
                 key={p.id}
                 className="p-5 rounded-2xl border space-y-4"
@@ -1271,6 +1398,60 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
       {/* ===================== TAB 3: PORTALS & ARCHITECTURE ===================== */}
       {activeTab === "portals" && (
         <div className="space-y-6">
+          {/* Sub-tabs: Active Portals vs Recycle Bin */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalSubTab("active");
+                  setPortal("All");
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: portalSubTab === "active" ? "#FFFFFF" : "transparent",
+                  color: portalSubTab === "active" ? COLORS.ink : COLORS.sub,
+                  boxShadow: portalSubTab === "active" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                }}
+              >
+                <Layers size={13} className={portalSubTab === "active" ? "text-indigo-600" : "text-slate-400"} />
+                <span>Active Portals ({activePortals.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalSubTab("trash");
+                  setPortal("All");
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: portalSubTab === "trash" ? "#FFFFFF" : "transparent",
+                  color: portalSubTab === "trash" ? "#DC2626" : COLORS.sub,
+                  boxShadow: portalSubTab === "trash" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                }}
+              >
+                <Trash2 size={13} className={portalSubTab === "trash" ? "text-rose-600" : "text-slate-400"} />
+                <span>Recycle Bin ({deletedPortals.length})</span>
+              </button>
+            </div>
+
+            {portalSubTab === "active" && (
+              <button
+                onClick={() => {
+                  setPortalError("");
+                  setNewPortalName("");
+                  setShowAddPortal(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm"
+                style={{ background: COLORS.accent }}
+              >
+                <Plus size={14} />
+                <span>Add Portal</span>
+              </button>
+            )}
+          </div>
+
+          {/* Filter Pills for Current Pool */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setPortal("All")}
@@ -1281,10 +1462,10 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
                 border: `1px solid ${COLORS.border}`,
               }}
             >
-              All
+              All ({currentPortalsPool.length})
             </button>
 
-            {portals.map((p) => (
+            {currentPortalsPool.map((p) => (
               <button
                 key={p.id}
                 onClick={() => setPortal(p.name)}
@@ -1299,71 +1480,101 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
               </button>
             ))}
 
-            <button
-              onClick={() => {
-                setPortalError("");
-                setNewPortalName("");
-                setShowAddPortal(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ background: COLORS.accent, color: "#fff", border: `1px solid ${COLORS.accent}` }}
-            >
-              <Plus size={14} />
-              Add Portal
-            </button>
-
-            {portal !== "All" && (
+            {portalSubTab === "active" && portal !== "All" && (
               <button
                 onClick={handleDeletePortal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                style={{ background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors"
               >
-                <Trash2 size={14} />
-                Delete Portal
+                <Trash2 size={13} />
+                <span>Move to Recycle Bin</span>
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {filteredPortals.map((p) => (
-              <div
-                key={p.id}
-                className="rounded-2xl p-5 border shadow-xs"
-                style={{ background: COLORS.panel, borderColor: COLORS.border }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold">{p.name}</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700">
-                    {p.total} cases
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                  <div>
-                    <div className="text-lg font-semibold text-teal-600">{p.smoke}</div>
-                    <div className="text-[10px] text-slate-400">SMOKE</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-indigo-600">{p.functional}</div>
-                    <div className="text-[10px] text-slate-400">FUNCTIONAL</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-sky-600">{p.regression}</div>
-                    <div className="text-[10px] text-slate-400">REGRESSION</div>
-                  </div>
-                </div>
-
-                {p.passed !== null && p.passed !== undefined && (
-                  <div className="mt-4 pt-3 flex items-center justify-between text-xs border-t border-slate-100 text-slate-500">
-                    <span>Smoke run: {p.passed} passed</span>
-                    <span className={p.failed && p.failed > 0 ? "text-rose-600 font-semibold" : "text-emerald-600"}>
-                      {p.failed && p.failed > 0 ? `${p.failed} failed` : "0 failed"}
-                    </span>
-                  </div>
-                )}
+          {filteredPortals.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+              <Layers size={28} className="mx-auto text-slate-300 mb-2" />
+              <div className="text-xs font-bold text-slate-700">
+                {portalSubTab === "trash" ? "Recycle Bin is empty" : "No portals found"}
               </div>
-            ))}
-          </div>
+              <div className="text-[11px] text-slate-400 mt-1">
+                {portalSubTab === "trash"
+                  ? "Soft-deleted portals will be preserved here indefinitely until restored or permanently deleted."
+                  : "Create your first test portal to track suites and test cases."}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {filteredPortals.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-2xl p-5 border shadow-xs flex flex-col justify-between"
+                  style={{ background: COLORS.panel, borderColor: p.is_deleted ? "#FECACA" : COLORS.border }}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-semibold text-slate-800">{p.name}</span>
+                      {p.is_deleted ? (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                          <Trash2 size={11} />
+                          Recycle Bin
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-50 text-indigo-700">
+                          {p.total} cases
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                      <div>
+                        <div className="text-lg font-semibold text-teal-600">{p.smoke}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">SMOKE</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold text-indigo-600">{p.functional}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">FUNCTIONAL</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold text-sky-600">{p.regression}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">REGRESSION</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {p.is_deleted ? (
+                    <div className="mt-5 pt-3 border-t border-rose-100 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => restorePortal(p.id)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                      >
+                        <RotateCcw size={12} />
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPortalToPurge(p)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors"
+                      >
+                        <Trash2 size={12} />
+                        Purge
+                      </button>
+                    </div>
+                  ) : (
+                    p.passed !== null && p.passed !== undefined && (
+                      <div className="mt-4 pt-3 flex items-center justify-between text-xs border-t border-slate-100 text-slate-500">
+                        <span>Smoke run: {p.passed} passed</span>
+                        <span className={p.failed && p.failed > 0 ? "text-rose-600 font-semibold" : "text-emerald-600 font-medium"}>
+                          {p.failed && p.failed > 0 ? `${p.failed} failed` : "0 failed"}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1672,6 +1883,216 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
                 style={{ background: COLORS.accent }}
               >
                 Add Portal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: MOVE TEST RUN TO RECYCLE BIN ===================== */}
+      {runToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setRunToDelete(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl p-6 shadow-2xl border"
+            style={{ background: COLORS.panel, borderColor: COLORS.border }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: COLORS.ink }}>
+                  Move Test Run to Recycle Bin?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {runToDelete.run_id} · {runToDelete.title}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-6">
+              This execution cycle will be moved to the <b>Recycle Bin</b>. It will <b>not be permanently deleted</b> and will remain available to restore at any time with all test results preserved.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setRunToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await deleteTestRun(runToDelete.id);
+                  setRunToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors shadow-sm"
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: PERMANENTLY PURGE TEST RUN ===================== */}
+      {runToPurge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setRunToPurge(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl p-6 shadow-2xl border"
+            style={{ background: COLORS.panel, borderColor: COLORS.border }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-rose-700">
+                  Permanently Delete Test Run?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {runToPurge.run_id} · {runToPurge.title}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-6">
+              <b>Warning:</b> This action is <b>irreversible</b>. The execution cycle and all recorded test results will be completely deleted from the database.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setRunToPurge(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await purgeTestRun(runToPurge.id);
+                  setRunToPurge(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-sm"
+              >
+                Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: MOVE PORTAL TO RECYCLE BIN ===================== */}
+      {portalToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setPortalToDelete(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl p-6 shadow-2xl border"
+            style={{ background: COLORS.panel, borderColor: COLORS.border }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: COLORS.ink }}>
+                  Move Portal to Recycle Bin?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Portal: &quot;{portalToDelete.name}&quot;
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-6">
+              This portal will be moved to the <b>Recycle Bin</b>. It will remain preserved indefinitely and can be restored at any time.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPortalToDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await deletePortal(portalToDelete.id);
+                  setPortal("All");
+                  setPortalToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors shadow-sm"
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== MODAL: PERMANENTLY PURGE PORTAL ===================== */}
+      {portalToPurge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setPortalToPurge(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl p-6 shadow-2xl border"
+            style={{ background: COLORS.panel, borderColor: COLORS.border }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-rose-700">
+                  Permanently Delete Portal?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Portal: &quot;{portalToPurge.name}&quot;
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-6">
+              <b>Warning:</b> This portal will be permanently wiped from the database. This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPortalToPurge(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await purgePortal(portalToPurge.id);
+                  setPortal("All");
+                  setPortalToPurge(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-sm"
+              >
+                Permanently Delete
               </button>
             </div>
           </div>

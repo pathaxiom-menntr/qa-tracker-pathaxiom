@@ -19,6 +19,7 @@ import {
   Check,
   Tag,
   Settings2,
+  RotateCcw,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Project, User } from "@/lib/types";
@@ -45,6 +46,8 @@ export function ProjectManagement() {
     addProject,
     updateProject,
     deleteProject,
+    restoreProject,
+    purgeProject,
     users,
     editUser,
     defects,
@@ -54,6 +57,10 @@ export function ProjectManagement() {
   const isClient = currentUser?.role === "Client";
   const clientOrgName = currentUser?.client_name || "PathAxiom";
   const canManageProjects = hasPermission(currentUser, "projects:manage") || currentUser?.role === "Super Admin" || currentUser?.role === "Admin";
+
+  const [viewTab, setViewTab] = useState<"active" | "trash">("active");
+  const [confirmPurge, setConfirmPurge] = useState<Project | null>(null);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
 
   // Filter & Search states
   const [search, setSearch] = useState("");
@@ -65,6 +72,9 @@ export function ProjectManagement() {
   const [accessProject, setAccessProject] = useState<Project | null>(null);
   const [hierarchyProject, setHierarchyProject] = useState<Project | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Project | null>(null);
+
+  const activeProjects = useMemo(() => projects.filter((p) => !p.is_deleted), [projects]);
+  const trashProjects = useMemo(() => projects.filter((p) => !!p.is_deleted), [projects]);
 
   // Available clients
   const availableClients = useMemo(() => {
@@ -83,9 +93,10 @@ export function ProjectManagement() {
     return Array.from(clientSet);
   }, [projects, isClient, clientOrgName]);
 
-  // Filtered projects
+  // Filtered projects based on active sub-tab
   const filteredProjects = useMemo(() => {
-    return projects.filter((p) => {
+    const baseList = viewTab === "active" ? activeProjects : trashProjects;
+    return baseList.filter((p) => {
       const pClients = (p.client_names && p.client_names.length > 0)
         ? p.client_names.map((c) => c.toLowerCase())
         : (p.client_name || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
@@ -112,22 +123,22 @@ export function ProjectManagement() {
       }
       return true;
     });
-  }, [projects, isClient, clientOrgName, selectedClient, search]);
+  }, [viewTab, activeProjects, trashProjects, isClient, clientOrgName, selectedClient, search]);
 
   // Dynamic KPI Metrics
-  const totalProjects = projects.length;
+  const totalProjects = activeProjects.length;
   const totalClients = availableClients.length;
   const totalModules = useMemo(
-    () => projects.reduce((acc, p) => acc + (p.modules?.length || 0), 0),
-    [projects]
+    () => activeProjects.reduce((acc, p) => acc + (p.modules?.length || 0), 0),
+    [activeProjects]
   );
   const totalFeatures = useMemo(() => {
-    return projects.reduce((acc, p) => {
+    return activeProjects.reduce((acc, p) => {
       if (!p.features) return acc;
       const fCount = Object.values(p.features).reduce((sum, fList) => sum + (fList?.length || 0), 0);
       return acc + fCount;
     }, 0);
-  }, [projects]);
+  }, [activeProjects]);
 
   return (
     <div className="space-y-5">
@@ -152,19 +163,73 @@ export function ProjectManagement() {
         </div>
       )}
 
+      {/* Sub-Tab Navigation: Active Projects vs Recycle Bin */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewTab("active")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              viewTab === "active"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <FolderGit2 size={14} />
+            <span>Active Projects</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                viewTab === "active" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {activeProjects.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setViewTab("trash")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              viewTab === "trash"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            <Trash2 size={14} />
+            <span>Recycle Bin (Trash)</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                viewTab === "trash" ? "bg-white/20 text-white" : "bg-amber-50 text-amber-700 border border-amber-200"
+              }`}
+            >
+              {trashProjects.length}
+            </span>
+          </button>
+        </div>
+
+        {canManageProjects && viewTab === "active" && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-white shadow-sm transition-all cursor-pointer"
+            style={{ background: COLORS.accent }}
+          >
+            <Plus size={14} />
+            <span>New Project</span>
+          </button>
+        )}
+      </div>
+
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-xl p-4 shadow-xs bg-white border border-slate-200">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
-              Total Projects
+              Active Projects
             </span>
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
               <FolderGit2 size={16} />
             </div>
           </div>
           <div className="text-2xl font-bold mt-2 text-slate-900">{totalProjects}</div>
-          <div className="text-xs text-slate-500 mt-1">Configured in QA Tracker</div>
+          <div className="text-xs text-slate-500 mt-1">Live in QA Tracker</div>
         </div>
 
         <div className="rounded-xl p-4 shadow-xs bg-white border border-slate-200">
@@ -196,14 +261,14 @@ export function ProjectManagement() {
         <div className="rounded-xl p-4 shadow-xs bg-white border border-slate-200">
           <div className="flex items-center justify-between">
             <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
-              Features Tested
+              Recycle Bin
             </span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Tag size={16} />
+            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Trash2 size={16} />
             </div>
           </div>
-          <div className="text-2xl font-bold mt-2 text-slate-900">{totalFeatures}</div>
-          <div className="text-xs text-slate-500 mt-1">Granular feature points</div>
+          <div className="text-2xl font-bold mt-2 text-amber-600">{trashProjects.length}</div>
+          <div className="text-xs text-slate-500 mt-1">Soft-deleted (restorable)</div>
         </div>
       </div>
 
@@ -443,50 +508,90 @@ export function ProjectManagement() {
 
                 {/* Footer Action Buttons */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1">
-                    {/* Structure Manager (Modules & Features) */}
-                    <button
-                      onClick={() => setHierarchyProject(p)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors cursor-pointer"
-                      title="Manage modules and features for this project"
-                    >
-                      <Layers size={13} />
-                      <span>Modules & Features</span>
-                    </button>
+                  {viewTab === "trash" ? (
+                    <>
+                      <div className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                        <Trash2 size={12} />
+                        <span>Deleted by: <b>{p.deleted_by || "Admin"}</b></span>
+                      </div>
 
-                    {/* Give Access / Team */}
-                    {canManageProjects && (
-                      <button
-                        onClick={() => setAccessProject(p)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
-                        title="Give team members access to this project"
-                      >
-                        <Users size={13} />
-                        <span>Access</span>
-                      </button>
-                    )}
-                  </div>
+                      <div className="flex items-center gap-1.5">
+                        {/* Restore Button */}
+                        <button
+                          onClick={async () => {
+                            setRestoringId(p.id);
+                            try {
+                              await restoreProject(p.id);
+                            } finally {
+                              setRestoringId(null);
+                            }
+                          }}
+                          disabled={restoringId === p.id}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                          title="Restore project back to active tracking"
+                        >
+                          <RotateCcw size={12} />
+                          <span>{restoringId === p.id ? "Restoring..." : "Restore"}</span>
+                        </button>
 
-                  {canManageProjects && (
-                    <div className="flex items-center gap-1">
-                      {/* Edit Project */}
-                      <button
-                        onClick={() => setEditingProject(p)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Edit project details"
-                      >
-                        <Pencil size={13} />
-                      </button>
+                        {/* Permanently Delete Button */}
+                        <button
+                          onClick={() => setConfirmPurge(p)}
+                          className="p-1.5 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 transition-colors cursor-pointer"
+                          title="Permanently purge project from database"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1">
+                        {/* Structure Manager (Modules & Features) */}
+                        <button
+                          onClick={() => setHierarchyProject(p)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors cursor-pointer"
+                          title="Manage modules and features for this project"
+                        >
+                          <Layers size={13} />
+                          <span>Modules & Features</span>
+                        </button>
 
-                      {/* Delete Project */}
-                      <button
-                        onClick={() => setConfirmDelete(p)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-                        title="Delete project"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                        {/* Give Access / Team */}
+                        {canManageProjects && (
+                          <button
+                            onClick={() => setAccessProject(p)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                            title="Give team members access to this project"
+                          >
+                            <Users size={13} />
+                            <span>Access</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {canManageProjects && (
+                        <div className="flex items-center gap-1">
+                          {/* Edit Project */}
+                          <button
+                            onClick={() => setEditingProject(p)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="Edit project details"
+                          >
+                            <Pencil size={13} />
+                          </button>
+
+                          {/* Delete Project */}
+                          <button
+                            onClick={() => setConfirmDelete(p)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Move project to Recycle Bin"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -572,7 +677,7 @@ export function ProjectManagement() {
         />
       )}
 
-      {/* ==================== CONFIRM DELETE PROJECT MODAL ==================== */}
+      {/* ==================== CONFIRM MOVE PROJECT TO RECYCLE BIN MODAL ==================== */}
       {confirmDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
@@ -582,14 +687,17 @@ export function ProjectManagement() {
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-xl p-5 shadow-2xl bg-white border border-slate-200"
           >
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={18} className="text-red-600" />
+            <div className="flex items-center gap-2 mb-3 text-amber-600">
+              <Trash2 size={18} />
               <span className="text-sm font-semibold text-slate-900">
-                Delete Project {confirmDelete.code}?
+                Move Project {confirmDelete.code} to Recycle Bin?
               </span>
             </div>
-            <p className="text-xs mb-5 text-slate-600">
-              Are you sure you want to permanently delete <b>{confirmDelete.name}</b> ({confirmDelete.code})? All project configuration and module mappings will be removed.
+            <p className="text-xs mb-2 text-slate-600">
+              Are you sure you want to move <b>{confirmDelete.name}</b> ({confirmDelete.code}) to the Recycle Bin?
+            </p>
+            <p className="text-[11px] mb-5 text-slate-400">
+              The project will be hidden from active cycles and test runs. It will remain in the Recycle Bin indefinitely and can be restored at any time.
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -603,9 +711,52 @@ export function ProjectManagement() {
                   await deleteProject(confirmDelete.id);
                   setConfirmDelete(null);
                 }}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 shadow-sm cursor-pointer"
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== CONFIRM PERMANENT PURGE PROJECT MODAL ==================== */}
+      {confirmPurge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs"
+          onClick={() => setConfirmPurge(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-xl p-5 shadow-2xl bg-white border border-red-200"
+          >
+            <div className="flex items-center gap-2 mb-3 text-red-600">
+              <AlertTriangle size={18} />
+              <span className="text-sm font-bold text-slate-900">
+                Permanently Delete Project {confirmPurge.code}?
+              </span>
+            </div>
+            <p className="text-xs mb-2 text-slate-700">
+              Permanently delete <b>{confirmPurge.name}</b> ({confirmPurge.code}) from PostgreSQL?
+            </p>
+            <div className="p-3 rounded-lg bg-red-50 text-red-700 text-[11px] mb-5 border border-red-200 leading-relaxed">
+              ⚠️ <b>Warning:</b> This action CANNOT be undone. All project settings, module configurations, and metadata will be permanently erased.
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmPurge(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await purgeProject(confirmPurge.id);
+                  setConfirmPurge(null);
+                }}
                 className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm cursor-pointer"
               >
-                Delete Project
+                Permanently Delete
               </button>
             </div>
           </div>
