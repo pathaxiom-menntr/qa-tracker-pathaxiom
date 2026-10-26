@@ -193,17 +193,24 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
       {/* Main Table Content */}
       <div className="rounded-2xl border shadow-xs overflow-hidden" style={{ background: COLORS.panel, borderColor: COLORS.border }}>
         {/* Table Filter Bar */}
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+        <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5 bg-white">
+          <div className="relative flex-1 max-w-md">
+            <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder={`Search deleted ${activeTab}...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border outline-none"
-              style={{ background: COLORS.panel2, borderColor: COLORS.border }}
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200/90 bg-slate-50/80 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
             />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
 
           {onNavigate && (
@@ -217,7 +224,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                 else if (activeTab === "vapt") onNavigate("security");
                 else if (activeTab === "reports") onNavigate("reports");
               }}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50/60 hover:bg-indigo-50 border border-indigo-200/70 transition-all shadow-2xs"
             >
               <span>Manage in {activeTab.toUpperCase()} Module</span>
               <ExternalLink size={13} />

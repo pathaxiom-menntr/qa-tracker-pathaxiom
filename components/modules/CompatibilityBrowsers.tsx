@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Monitor, CheckCircle2, XCircle, Plus, X } from "lucide-react";
+import { Monitor, CheckCircle2, XCircle, Plus, X, Search, ChevronDown, RotateCcw } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 
 const COLORS = {
@@ -34,9 +34,21 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string; s
 export function CompatibilityBrowsers() {
   const { browsers, compat, addBrowser } = useQAStore();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const passCount = browsers.filter((b) => b.status === "Pass").length;
   const failCount = browsers.filter((b) => b.status === "Fail").length;
+
+  const filteredBrowsers = browsers.filter((b) => {
+    const matchSearch =
+      !search ||
+      b.browser.toLowerCase().includes(search.toLowerCase()) ||
+      b.engine.toLowerCase().includes(search.toLowerCase()) ||
+      (b.remark || "").toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "All" || b.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   return (
     <div className="space-y-6">
@@ -66,20 +78,91 @@ export function CompatibilityBrowsers() {
       </div>
 
       {/* Cross-Browser Table */}
-      <div className="rounded-xl overflow-hidden shadow-sm" style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}>
-        <div className="p-4 flex items-center justify-between" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+      <div className="rounded-2xl overflow-hidden shadow-xs bg-white border border-slate-200">
+        <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3.5 border-b border-slate-200">
           <div>
             <div className="text-sm font-semibold" style={{ color: COLORS.ink }}>Cross-Browser Compatibility Matrix</div>
             <div className="text-xs" style={{ color: COLORS.sub }}>Rendering and functional checks across tested browsers & engines</div>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-all cursor-pointer"
             style={{ background: COLORS.accent }}
           >
             <Plus size={14} />
             Add Browser
           </button>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div className="p-3.5 sm:p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative min-w-[200px] max-w-xs flex-1">
+              <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search browser, engine, remark…"
+                className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter */}
+            <div className="relative group">
+              <CheckCircle2
+                size={13}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  statusFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Pass">Passing Only</option>
+                <option value="Fail">Failing Only</option>
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
+
+            {(search || statusFilter !== "All") && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("All");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                title="Reset filters"
+              >
+                <RotateCcw size={12} className="text-slate-400" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          <span className="text-xs text-slate-500 font-medium">
+            Showing <b className="text-slate-800">{filteredBrowsers.length}</b> of <b>{browsers.length}</b> browsers
+          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -94,7 +177,14 @@ export function CompatibilityBrowsers() {
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
-              {browsers.map((b) => (
+              {filteredBrowsers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-xs text-slate-400">
+                    No browsers match the applied filters.
+                  </td>
+                </tr>
+              ) : (
+                filteredBrowsers.map((b) => (
                 <tr key={`${b.browser}-${b.version}`} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium" style={{ color: COLORS.ink }}>{b.browser}</td>
                   <td className="px-4 py-3 font-mono text-[11px]" style={{ color: COLORS.sub }}>{b.engine}</td>
@@ -115,7 +205,8 @@ export function CompatibilityBrowsers() {
                     {b.remark || "—"}
                   </td>
                 </tr>
-              ))}
+              ))
+            )}
             </tbody>
           </table>
         </div>

@@ -23,6 +23,8 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  Search,
+  RotateCcw,
 } from "lucide-react";
 import {
   BarChart,
@@ -258,6 +260,18 @@ export function Performance() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [reportsList, setReportsList] = useState<PerformanceReportRecord[]>([]);
   const [previewReport, setPreviewReport] = useState<PerformanceReportRecord | null>(null);
+  const [reportSearch, setReportSearch] = useState("");
+  const [reportStatusFilter, setReportStatusFilter] = useState("All");
+
+  const filteredReportsList = reportsList.filter((r) => {
+    const matchSearch =
+      !reportSearch ||
+      r.title.toLowerCase().includes(reportSearch.toLowerCase()) ||
+      r.projectName.toLowerCase().includes(reportSearch.toLowerCase()) ||
+      r.fileName.toLowerCase().includes(reportSearch.toLowerCase());
+    const matchStatus = reportStatusFilter === "All" || r.status === reportStatusFilter;
+    return matchSearch && matchStatus;
+  });
 
   // Load persisted performance reports
   useEffect(() => {
@@ -462,6 +476,78 @@ export function Performance() {
           </button>
         </div>
 
+        {/* Filter and Search Toolbar */}
+        <div className="p-3.5 sm:p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative min-w-[200px] max-w-xs flex-1">
+              <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                value={reportSearch}
+                onChange={(e) => setReportSearch(e.target.value)}
+                placeholder="Search report title, file, project…"
+                className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
+              />
+              {reportSearch && (
+                <button
+                  onClick={() => setReportSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter */}
+            <div className="relative group">
+              <CheckCircle2
+                size={13}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  reportStatusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={reportStatusFilter}
+                onChange={(e) => setReportStatusFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  reportStatusFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="All">All SLA Statuses</option>
+                <option value="Within SLA">Within SLA</option>
+                <option value="Degraded">Degraded</option>
+                <option value="Failed / Breached">Failed / Breached</option>
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  reportStatusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
+
+            {(reportSearch || reportStatusFilter !== "All") && (
+              <button
+                onClick={() => {
+                  setReportSearch("");
+                  setReportStatusFilter("All");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                title="Reset filters"
+              >
+                <RotateCcw size={12} className="text-slate-400" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          <span className="text-xs text-slate-500 font-medium">
+            Showing <b className="text-slate-800">{filteredReportsList.length}</b> of <b>{reportsList.length}</b> reports
+          </span>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead style={{ background: COLORS.panel2, borderBottom: `1px solid ${COLORS.border}` }}>
@@ -475,17 +561,17 @@ export function Performance() {
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
-              {reportsList.length === 0 ? (
+              {filteredReportsList.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <FileText size={28} className="text-slate-300" />
-                      <span>No performance reports added yet. Click &quot;Add Performance Report&quot; to upload one.</span>
+                      <span>No performance reports match the selected filters.</span>
                     </div>
                   </td>
                 </tr>
               ) : (
-                reportsList.map((r) => (
+                filteredReportsList.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-xs" style={{ color: COLORS.ink }}>

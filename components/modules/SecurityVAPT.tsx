@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { ShieldAlert, AlertTriangle, Plus, Pencil, Trash2, X, CheckCircle2, RotateCcw } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { ShieldAlert, AlertTriangle, Plus, Pencil, Trash2, X, CheckCircle2, RotateCcw, Search, ChevronDown, Filter } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { VaptFinding, Role } from "@/lib/types";
 
@@ -77,9 +77,22 @@ export function SecurityVAPT() {
   const [severity, setSeverity] = useState("Major");
   const [status, setStatus] = useState("Open");
 
+  const [search, setSearch] = useState("");
+  const [sevFilter, setSevFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+
   const activeFindings = vapt.filter((v) => !v.is_deleted);
   const trashFindings = vapt.filter((v) => !!v.is_deleted);
   const currentList = activeTab === "active" ? activeFindings : trashFindings;
+
+  const filteredList = useMemo(() => {
+    return currentList.filter((f) => {
+      const matchSearch = !search || f.title.toLowerCase().includes(search.toLowerCase());
+      const matchSev = sevFilter === "All" || f.severity === sevFilter;
+      const matchStatus = statusFilter === "All" || f.status === statusFilter;
+      return matchSearch && matchSev && matchStatus;
+    });
+  }, [currentList, search, sevFilter, statusFilter]);
 
   const openCount = activeFindings.filter((v) => v.status === "Open").length;
   const majorCount = activeFindings.filter((v) => v.severity === "Major" || v.severity === "Critical").length;
@@ -165,11 +178,116 @@ export function SecurityVAPT() {
           </div>
         </div>
 
-        {currentList.length === 0 ? (
+        {/* Filter and Search Toolbar */}
+        <div className="p-3.5 sm:p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+            {/* Search Input */}
+            <div className="relative min-w-[200px] max-w-xs flex-1">
+              <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search vulnerability title..."
+                className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Severity Filter */}
+            <div className="relative group">
+              <ShieldAlert
+                size={13}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  sevFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={sevFilter}
+                onChange={(e) => setSevFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  sevFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="All">All Severities</option>
+                <option value="Critical">Critical</option>
+                <option value="Major">Major</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  sevFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div className="relative group">
+              <CheckCircle2
+                size={13}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  statusFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Closed">Closed</option>
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
+
+            {(search || sevFilter !== "All" || statusFilter !== "All") && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setSevFilter("All");
+                  setStatusFilter("All");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                title="Reset filters"
+              >
+                <RotateCcw size={12} className="text-slate-400" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          <span className="text-xs text-slate-500 font-medium">
+            Showing <b className="text-slate-800">{filteredList.length}</b> of <b>{currentList.length}</b> findings
+          </span>
+        </div>
+
+        {filteredList.length === 0 ? (
           <div className="p-10 text-center text-xs text-slate-400">
             {activeTab === "trash"
               ? "Recycle Bin is empty. No security findings currently soft-deleted."
-              : "No active findings recorded. Click \"Add Finding\" to log a vulnerability."}
+              : "No findings match the selected filters."}
           </div>
         ) : (
           <table className="w-full text-left text-xs">
@@ -184,7 +302,7 @@ export function SecurityVAPT() {
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
-              {currentList.map((f, i) => (
+              {filteredList.map((f, i) => (
                 <tr key={f.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono" style={{ color: COLORS.sub }}>{i + 1}</td>
                   <td className="px-4 py-3 font-medium" style={{ color: COLORS.ink }}>

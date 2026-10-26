@@ -24,6 +24,8 @@ import {
   RotateCcw,
   Upload,
   Paperclip,
+  ChevronDown,
+  Filter,
 } from "lucide-react";
 import {
   BarChart,
@@ -1033,38 +1035,41 @@ export function Defects() {
 
       {/* Primary Filter and Action Bar */}
       <div
-        className="p-4 rounded-xl shadow-sm space-y-3"
+        className="p-4 sm:p-5 rounded-2xl shadow-xs space-y-4"
         style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
       >
-        {/* Top Controls: Search, Client, Project */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+        {/* Top Controls: Search, Client, Project, Module, Date */}
+        <div className="flex flex-wrap items-center justify-between gap-3.5">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
             {/* Search Input */}
-            <div className="relative min-w-[180px] max-w-xs">
-              <Search size={14} color={COLORS.sub} className="absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="relative min-w-[200px] max-w-xs">
+              <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search ID, title, module, feature…"
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg text-xs outline-none"
-                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+                className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
               />
             </div>
 
             {/* Client Filter (Disabled/Locked if role is Client) */}
-            <div className="flex items-center gap-1">
-              <Building2 size={13} color={COLORS.sub} />
+            <div className="relative group">
+              <Building2
+                size={14}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  selectedClient !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
               <select
                 value={selectedClient}
                 disabled={isClient}
                 onChange={(e) => handleClientChange(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer max-w-[160px] truncate"
-                style={{
-                  background: COLORS.panel2,
-                  border: `1px solid ${COLORS.border}`,
-                  color: COLORS.ink,
-                  opacity: isClient ? 0.75 : 1,
-                }}
+                className={`appearance-none pl-9 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[180px] truncate ${
+                  selectedClient !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+                style={{ opacity: isClient ? 0.75 : 1 }}
                 title={isClient ? "Client filter is locked to your organization" : "Filter by Client Organization"}
               >
                 {!isClient && <option value="All">All Clients</option>}
@@ -1074,19 +1079,33 @@ export function Defects() {
                   </option>
                 ))}
               </select>
+              <ChevronDown
+                size={13}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  selectedClient !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
             </div>
 
             {/* Project Filter */}
-            <div className="flex items-center gap-1">
-              <FolderGit2 size={13} color={COLORS.sub} />
+            <div className="relative group">
+              <FolderGit2
+                size={14}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  selectedProject !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
               <select
                 value={selectedProject}
                 onChange={(e) => {
                   setSelectedProject(e.target.value);
                   setModFilter("All");
                 }}
-                className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer max-w-[190px] truncate font-medium"
-                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+                className={`appearance-none pl-9 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[210px] truncate ${
+                  selectedProject !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
               >
                 <option value="All">All Projects</option>
                 {projectsForClient.map((p) => (
@@ -1095,16 +1114,30 @@ export function Defects() {
                   </option>
                 ))}
               </select>
+              <ChevronDown
+                size={13}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  selectedProject !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
             </div>
 
             {/* Module Filter (Cascading from Project) */}
-            <div className="flex items-center gap-1">
-              <Layers size={13} color={COLORS.sub} />
+            <div className="relative group">
+              <Layers
+                size={14}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  modFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
               <select
                 value={modFilter}
                 onChange={(e) => setModFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg text-xs outline-none max-w-[150px] truncate cursor-pointer"
-                style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+                className={`appearance-none pl-9 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[170px] truncate ${
+                  modFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
               >
                 <option value="All">All Modules</option>
                 {availableModules.map((m) => (
@@ -1113,16 +1146,30 @@ export function Defects() {
                   </option>
                 ))}
               </select>
+              <ChevronDown
+                size={13}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  modFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
             </div>
 
-            {/* Prominent Filter by Date Control - In Primary Controls Bar */}
-            <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-lg shadow-2xs">
-              <Calendar size={13} className="text-indigo-600 shrink-0" />
-              <span className="text-[11px] font-bold text-indigo-900 whitespace-nowrap">Filter by Date:</span>
+            {/* Prominent Filter by Date Control */}
+            <div className="relative group">
+              <Calendar
+                size={14}
+                className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  dateFilter !== "all" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-indigo-900 outline-none cursor-pointer pr-1"
+                className={`appearance-none pl-9 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  dateFilter !== "all"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
                 title="Filter Defects by Date Range"
               >
                 <option value="all">All Dates</option>
@@ -1133,24 +1180,34 @@ export function Defects() {
                 <option value="this_month">This Month</option>
                 <option value="custom">Custom Range...</option>
               </select>
+              <ChevronDown
+                size={13}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  dateFilter !== "all" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
             </div>
 
             {dateFilter === "custom" && (
-              <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-indigo-300 shadow-xs">
-                <span className="text-[10px] text-slate-500 font-semibold">From:</span>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
-                />
-                <span className="text-[10px] text-slate-500 font-semibold">To:</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-slate-50 border border-slate-200 rounded outline-none font-medium"
-                />
+              <div className="flex items-center gap-2 bg-indigo-50/50 p-1.5 px-3 rounded-xl border border-indigo-200 shadow-2xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-600 font-semibold">From:</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none font-medium focus:border-indigo-500 shadow-2xs"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-600 font-semibold">To:</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none font-medium focus:border-indigo-500 shadow-2xs"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -1161,19 +1218,19 @@ export function Defects() {
               {canManageProjects && (
                 <button
                   onClick={() => setShowManageHierarchy(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer shadow-2xs"
                   style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
                   title="Manage Project Modules & Features"
                 >
                   <Settings2 size={13} color={COLORS.sub} />
-                  Modules & Features
+                  <span>Modules & Features</span>
                 </button>
               )}
 
               {canCreateDefect && (
                 <button
                   onClick={() => setShowBulkUpload(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer hover:bg-slate-100"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer hover:bg-slate-100 shadow-2xs"
                   style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
                   title="Bulk Upload Defects from Excel or CSV file"
                 >
@@ -1185,7 +1242,7 @@ export function Defects() {
               {canCreateDefect && (
                 <button
                   onClick={() => setShowAdd(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
                   style={{ background: COLORS.accent }}
                 >
                   <Plus size={14} /> Log Defect
@@ -1193,44 +1250,84 @@ export function Defects() {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-semibold">
-              <Trash2 size={12} className="text-amber-600" />
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold">
+              <Trash2 size={13} className="text-amber-600" />
               <span>Trash Mode</span>
             </div>
           )}
         </div>
 
         {/* Secondary Filter Row: Severity, Status & Download Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t" style={{ borderColor: COLORS.border }}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium mr-1" style={{ color: COLORS.sub }}>Filter By:</span>
-            <select
-              value={sevFilter}
-              onChange={(e) => setSevFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer"
-              style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
-            >
-              <option value="All">All Severities</option>
-              {SEVERITY_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+        <div className="flex flex-wrap items-center justify-between gap-3.5 pt-3 border-t" style={{ borderColor: COLORS.border }}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+              <Filter size={13} className="text-slate-400" />
+              <span>Filter By:</span>
+            </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer"
-              style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
-            >
-              <option value="All">All Statuses</option>
-              {STATUS_OPTIONS.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </select>
+            {/* Severity Filter */}
+            <div className="relative group">
+              <ShieldAlert
+                size={13}
+                className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  sevFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={sevFilter}
+                onChange={(e) => setSevFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-7 py-1.5 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  sevFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="All">All Severities</option>
+                {SEVERITY_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  sevFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div className="relative group">
+              <CheckCircle2
+                size={13}
+                className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-7 py-1.5 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  statusFilter !== "All"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="All">All Statuses</option>
+                {STATUS_OPTIONS.map((st) => (
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
 
             {(selectedProject !== "All" || (selectedClient !== "All" && !isClient) || modFilter !== "All" || sevFilter !== "All" || statusFilter !== "All" || dateFilter !== "all" || q.trim() !== "") && (
               <button
@@ -1245,38 +1342,38 @@ export function Defects() {
                   setCustomEndDate("");
                   setQ("");
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
                 title="Reset all filters to default"
               >
-                <RotateCcw size={12} />
+                <RotateCcw size={12} className="text-slate-400" />
                 <span>Reset</span>
               </button>
             )}
 
-            <span className="text-xs ml-2" style={{ color: COLORS.sub }}>
-              Showing <b>{filtered.length}</b> of <b>{activeTab === "active" ? activeCount : trashCount}</b> {activeTab === "active" ? "active" : "deleted"} defects
+            <span className="text-xs ml-2 font-medium" style={{ color: COLORS.sub }}>
+              Showing <b className="text-slate-800">{filtered.length}</b> of <b>{activeTab === "active" ? activeCount : trashCount}</b> {activeTab === "active" ? "active" : "deleted"} defects
             </span>
           </div>
 
           {/* DOWNLOAD BUG REPORT BUTTONS (Requirement 1) */}
           {canExportReports && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-500 mr-1">Download Report:</span>
+              <span className="text-xs font-medium text-slate-500 mr-1">Download:</span>
               <button
                 onClick={handleExportExcel}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
                 title="Download currently filtered bug list as Excel spreadsheet (.xlsx)"
               >
-                <FileSpreadsheet size={14} className="text-emerald-600" />
-                Excel (.xlsx)
+                <FileSpreadsheet size={13} className="text-emerald-600" />
+                <span>Excel</span>
               </button>
               <button
                 onClick={handleExportPDF}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-sm cursor-pointer"
-                title="Download currently filtered bug list as PDF document (.pdf)"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer"
+                title="Download currently filtered bug list as official PDF audit report (.pdf)"
               >
-                <FileText size={14} className="text-rose-600" />
-                PDF (.pdf)
+                <FileText size={13} className="text-rose-600" />
+                <span>PDF</span>
               </button>
             </div>
           )}

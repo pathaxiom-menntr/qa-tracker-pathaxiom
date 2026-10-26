@@ -20,6 +20,7 @@ import {
   Tag,
   Settings2,
   RotateCcw,
+  ChevronDown,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Project, User } from "@/lib/types";
@@ -273,27 +274,44 @@ export function ProjectManagement() {
       </div>
 
       {/* Primary Action & Filter Toolbar */}
-      <div className="p-4 rounded-xl shadow-xs bg-white border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+      <div className="p-4 sm:p-5 rounded-2xl shadow-xs bg-white border border-slate-200 flex flex-wrap items-center justify-between gap-3.5">
+        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
           {/* Search */}
-          <div className="relative min-w-[200px] max-w-xs">
-            <Search size={14} className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative min-w-[200px] max-w-xs flex-1">
+            <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search project name, code, client…"
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-800 outline-none focus:bg-white focus:border-indigo-500 transition-all"
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
             />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
 
           {/* Client Filter */}
-          <div className="flex items-center gap-1.5">
-            <Building2 size={13} className="text-slate-400" />
+          <div className="relative group">
+            <Building2
+              size={13}
+              className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                selectedClient !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
             <select
               value={selectedClient}
               disabled={isClient}
               onChange={(e) => setSelectedClient(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 text-slate-800 outline-none cursor-pointer max-w-[170px] truncate font-medium"
+              className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[190px] truncate ${
+                selectedClient !== "All"
+                  ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                  : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+              } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
             >
               {!isClient && (
                 <>
@@ -307,19 +325,16 @@ export function ProjectManagement() {
                 </option>
               ))}
             </select>
+            <ChevronDown
+              size={12}
+              className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                selectedClient !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
           </div>
 
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="px-2 py-1 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              Clear
-            </button>
-          )}
-
-          <span className="text-xs text-slate-500 ml-1">
-            Showing <b>{filteredProjects.length}</b> of <b>{projects.length}</b> projects
+          <span className="text-xs text-slate-500 font-medium ml-1">
+            Showing <b className="text-slate-800">{filteredProjects.length}</b> of <b>{projects.length}</b> projects
           </span>
         </div>
 

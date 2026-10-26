@@ -13,6 +13,7 @@ import {
   RotateCcw,
   TrendingUp,
   Activity,
+  ChevronDown,
 } from "lucide-react";
 import {
   BarChart,
@@ -281,18 +282,24 @@ export function ExecutiveDashboard() {
     <div className="space-y-5">
       {/* Dynamic Dashboard Filter Bar */}
       <div
-        className="p-3.5 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3"
+        className="p-4 sm:p-5 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-4"
         style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
       >
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: COLORS.ink }}>
-            <Activity size={15} className="text-indigo-600" />
-            <span>Dashboard Scope:</span>
+        <div className="flex flex-wrap items-center gap-3.5">
+          {/* Scope Label with Modern Badge Style */}
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50/80 border border-indigo-100 text-indigo-900 font-bold text-xs shrink-0 shadow-2xs">
+            <Activity size={15} className="text-indigo-600 shrink-0" />
+            <span>Dashboard Scope</span>
           </div>
 
           {/* Client Filter */}
-          <div className="flex items-center gap-1">
-            <Building2 size={13} color={COLORS.sub} />
+          <div className="relative group">
+            <Building2
+              size={14}
+              className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                selectedClient !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
             <select
               value={selectedClient}
               onChange={(e) => {
@@ -300,13 +307,11 @@ export function ExecutiveDashboard() {
                 setSelectedProject("All");
               }}
               disabled={isClient}
-              className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer font-medium max-w-[160px] truncate"
-              style={{
-                background: COLORS.panel2,
-                border: `1px solid ${COLORS.border}`,
-                color: COLORS.ink,
-                opacity: isClient ? 0.8 : 1,
-              }}
+              className={`appearance-none pl-9 pr-9 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[190px] truncate ${
+                selectedClient !== "All"
+                  ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                  : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+              } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
               title={isClient ? "Locked to your organization" : "Filter Dashboard by Client"}
             >
               {!isClient && <option value="All">All Clients</option>}
@@ -316,16 +321,30 @@ export function ExecutiveDashboard() {
                 </option>
               ))}
             </select>
+            <ChevronDown
+              size={13}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                selectedClient !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
           </div>
 
           {/* Project Filter */}
-          <div className="flex items-center gap-1">
-            <FolderGit2 size={13} color={COLORS.sub} />
+          <div className="relative group">
+            <FolderGit2
+              size={14}
+              className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                selectedProject !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer font-medium max-w-[190px] truncate"
-              style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              className={`appearance-none pl-9 pr-9 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[230px] truncate ${
+                selectedProject !== "All"
+                  ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                  : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+              } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
               title="Filter Dashboard by Project"
             >
               <option value="All">All Projects</option>
@@ -335,16 +354,30 @@ export function ExecutiveDashboard() {
                 </option>
               ))}
             </select>
+            <ChevronDown
+              size={13}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                selectedProject !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
           </div>
 
           {/* Date Filter */}
-          <div className="flex items-center gap-1">
-            <Calendar size={13} color={COLORS.sub} />
+          <div className="relative group">
+            <Calendar
+              size={14}
+              className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                dateFilter !== "all" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg text-xs outline-none cursor-pointer font-medium"
-              style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}
+              className={`appearance-none pl-9 pr-9 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                dateFilter !== "all"
+                  ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                  : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+              } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
               title="Filter Dashboard by Date Range"
             >
               <option value="all">All Dates</option>
@@ -354,36 +387,47 @@ export function ExecutiveDashboard() {
               <option value="this_month">This Month</option>
               <option value="custom">Custom Range...</option>
             </select>
+            <ChevronDown
+              size={13}
+              className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                dateFilter !== "all" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
+          </div>
 
-            {dateFilter === "custom" && (
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                <span className="text-[10px] text-slate-500 font-medium">From:</span>
+          {/* Custom Date Range Picker */}
+          {dateFilter === "custom" && (
+            <div className="flex items-center gap-2 bg-indigo-50/50 p-1.5 px-3 rounded-xl border border-indigo-200 shadow-2xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-600 font-semibold">From:</span>
                 <input
                   type="date"
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded outline-none"
+                  className="px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none font-medium focus:border-indigo-500 shadow-2xs"
                 />
-                <span className="text-[10px] text-slate-500 font-medium">To:</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-600 font-semibold">To:</span>
                 <input
                   type="date"
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded outline-none"
+                  className="px-2 py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none font-medium focus:border-indigo-500 shadow-2xs"
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Reset Button */}
         {(selectedProject !== "All" || (selectedClient !== "All" && !isClient) || dateFilter !== "all") && (
           <button
             onClick={handleResetFilters}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs shrink-0"
             title="Reset to default view"
           >
-            <RotateCcw size={12} />
+            <RotateCcw size={12} className="text-slate-400" />
             <span>Reset Filters</span>
           </button>
         )}

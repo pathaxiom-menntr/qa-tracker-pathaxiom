@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Bug,
   Info,
+  ChevronDown,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import * as XLSX from "xlsx";
@@ -123,6 +124,7 @@ export function Reports() {
   const { reports, uploadReport, deleteReport, restoreReport, purgeReport, defects, currentUser } = useQAStore();
   const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Uploaded" | "Pending">("All");
   const [activeUpload, setActiveUpload] = useState<string | null>(null);
   const [reportToDelete, setReportToDelete] = useState<{ key: string; name: string } | null>(null);
   const [reportToPurge, setReportToPurge] = useState<{ key: string; name: string } | null>(null);
@@ -207,9 +209,15 @@ export function Reports() {
     doc.save(`QA_Bug_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const filtered = REPORT_TYPES.filter((r) =>
-    r.name.toLowerCase().includes(q.toLowerCase())
-  );
+  const filtered = REPORT_TYPES.filter((r) => {
+    const matchQ = !q || r.name.toLowerCase().includes(q.toLowerCase()) || r.desc.toLowerCase().includes(q.toLowerCase());
+    const hasDoc = reports[r.key] && !reports[r.key]?.is_deleted;
+    const matchStatus =
+      statusFilter === "All" ||
+      (statusFilter === "Uploaded" && hasDoc) ||
+      (statusFilter === "Pending" && !hasDoc);
+    return matchQ && matchStatus;
+  });
   const activeUploadedCount = Object.values(reports).filter((r) => !r.is_deleted).length;
   const trashReports = Object.entries(reports)
     .filter(([_, r]) => !!r?.is_deleted)
@@ -276,20 +284,94 @@ export function Reports() {
 
       {activeTab === "active" ? (
         <>
-          {/* Search Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg flex-1 min-w-[240px] max-w-md"
-              style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
-            >
-              <Search size={14} color={COLORS.sub} />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search report types…"
-                className="bg-transparent outline-none text-sm flex-1"
-                style={{ color: COLORS.ink }}
-              />
+          {/* Filter & Action Toolbar */}
+          <div
+            className="p-4 sm:p-5 rounded-2xl shadow-xs flex flex-wrap items-center justify-between gap-3.5"
+            style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+          >
+            <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+              {/* Search Input */}
+              <div className="relative min-w-[220px] max-w-sm flex-1">
+                <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search report types, descriptions…"
+                  className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
+                />
+                {q && (
+                  <button
+                    onClick={() => setQ("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <div className="relative group">
+                <CheckCircle2
+                  size={13}
+                  className={`absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                    statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                  }`}
+                />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                    statusFilter !== "All"
+                      ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                      : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                  } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+                >
+                  <option value="All">All Documents</option>
+                  <option value="Uploaded">Available (Uploaded)</option>
+                  <option value="Pending">Pending Upload</option>
+                </select>
+                <ChevronDown
+                  size={12}
+                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                    statusFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                  }`}
+                />
+              </div>
+
+              {(q || statusFilter !== "All") && (
+                <button
+                  onClick={() => {
+                    setQ("");
+                    setStatusFilter("All");
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                  title="Reset filters"
+                >
+                  <RotateCcw size={12} className="text-slate-400" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+
+            {/* Live Exports */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500 mr-1">Export Defects:</span>
+              <button
+                onClick={handleDownloadLiveDefectsExcel}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-2xs cursor-pointer"
+                title="Download live defect list as Excel (.xlsx)"
+              >
+                <FileSpreadsheet size={13} className="text-emerald-600" />
+                <span>Excel</span>
+              </button>
+              <button
+                onClick={handleDownloadLiveDefectsPDF}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer"
+                title="Download live defect report as PDF (.pdf)"
+              >
+                <FileText size={13} className="text-rose-600" />
+                <span>PDF</span>
+              </button>
             </div>
           </div>
 

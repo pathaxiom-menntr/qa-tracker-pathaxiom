@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   RotateCcw,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Role, User } from "@/lib/types";
@@ -372,75 +373,100 @@ export function UserManagement() {
 
       {/* Control Bar */}
       <div
-        className="rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-sm"
+        className="rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3.5 shadow-xs"
         style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
       >
         <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
           {/* Search Input */}
-          <div
-            className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px] max-w-sm"
-            style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}` }}
-          >
-            <Search size={15} color={COLORS.sub} />
+          <div className="relative min-w-[200px] max-w-sm flex-1">
+            <Search size={14} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, or role…"
-              className="bg-transparent outline-none text-xs flex-1"
-              style={{ color: COLORS.ink }}
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-xs bg-slate-50/80 border border-slate-200/90 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="cursor-pointer">
-                <X size={13} color={COLORS.sub} />
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={13} />
               </button>
             )}
           </div>
 
           {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
-            style={{
-              background: COLORS.panel2,
-              border: `1px solid ${COLORS.border}`,
-              color: COLORS.ink,
-            }}
-          >
-            <option value="ALL">All Roles</option>
-            {ALL_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+          <div className="relative group">
+            <Shield
+              size={13}
+              className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                roleFilter !== "ALL" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                roleFilter !== "ALL"
+                  ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                  : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+              } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+            >
+              <option value="ALL">All Roles</option>
+              {ALL_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={12}
+              className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                roleFilter !== "ALL" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
+          </div>
 
           {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
-            style={{
-              background: COLORS.panel2,
-              border: `1px solid ${COLORS.border}`,
-              color: COLORS.ink,
-            }}
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="active">Active Only</option>
-            <option value="deactivated">Deactivated Only</option>
-          </select>
+          <div className="relative group">
+            <CheckCircle2
+              size={13}
+              className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                statusFilter !== "ALL" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                statusFilter !== "ALL"
+                  ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                  : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+              } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="active">Active Only</option>
+              <option value="deactivated">Deactivated Only</option>
+            </select>
+            <ChevronDown
+              size={12}
+              className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                statusFilter !== "ALL" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+              }`}
+            />
+          </div>
         </div>
 
         {/* Add User Button (Visible to Super Admin and Admin) */}
         {canCreateUsers && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-all cursor-pointer"
             style={{ background: isSuperAdmin ? COLORS.accent : COLORS.accent2 }}
           >
             <UserPlus size={15} />
-            Add User
+            <span>Add User</span>
           </button>
         )}
       </div>

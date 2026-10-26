@@ -714,42 +714,59 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
 
               {/* Run search & mini filters */}
               <div className="relative">
-                <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search test runs..."
                   value={runSearch}
                   onChange={(e) => setRunSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border outline-none transition-all"
-                  style={{ background: COLORS.panel, borderColor: COLORS.border }}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200/90 bg-slate-50/80 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
                 />
               </div>
 
-              <div className="flex gap-1.5">
-                <select
-                  value={envFilter}
-                  onChange={(e) => setEnvFilter(e.target.value)}
-                  className="w-1/2 px-2 py-1.5 text-xs rounded-lg border outline-none"
-                  style={{ background: COLORS.panel, borderColor: COLORS.border }}
-                >
-                  <option value="All">All Envs</option>
-                  <option value="Staging">Staging</option>
-                  <option value="Production">Production</option>
-                  <option value="UAT">UAT</option>
-                  <option value="QA / Dev">QA / Dev</option>
-                </select>
+              <div className="flex gap-2">
+                <div className="relative flex-1 group">
+                  <select
+                    value={envFilter}
+                    onChange={(e) => setEnvFilter(e.target.value)}
+                    className={`w-full appearance-none pl-3 pr-7 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                      envFilter !== "All"
+                        ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                        : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                    } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+                  >
+                    <option value="All">All Envs</option>
+                    <option value="Staging">Staging</option>
+                    <option value="Production">Production</option>
+                    <option value="UAT">UAT</option>
+                    <option value="QA / Dev">QA / Dev</option>
+                  </select>
+                  <ChevronDown
+                    size={12}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-slate-600"
+                  />
+                </div>
 
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-1/2 px-2 py-1.5 text-xs rounded-lg border outline-none"
-                  style={{ background: COLORS.panel, borderColor: COLORS.border }}
-                >
-                  <option value="All">All Status</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Blocked">Blocked</option>
-                </select>
+                <div className="relative flex-1 group">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className={`w-full appearance-none pl-3 pr-7 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                      statusFilter !== "All"
+                        ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                        : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                    } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+                  >
+                    <option value="All">All Status</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Blocked">Blocked</option>
+                  </select>
+                  <ChevronDown
+                    size={12}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-hover:text-slate-600"
+                  />
+                </div>
               </div>
 
               {/* Scrollable Test Runs List */}
@@ -997,50 +1014,66 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
 
                   {/* Filter & Search Bar within active run */}
                   <div
-                    className="p-3 rounded-xl border flex flex-col md:flex-row items-center justify-between gap-3"
+                    className="p-3.5 sm:p-4 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-3.5 shadow-2xs"
                     style={{ background: COLORS.panel, borderColor: COLORS.border }}
                   >
-                    <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
-                      <div className="relative flex-1 md:w-64">
-                        <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                    <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                      <div className="relative flex-1 md:w-72">
+                        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
                           placeholder="Filter tests by ID, steps, title..."
                           value={caseSearch}
                           onChange={(e) => setCaseSearch(e.target.value)}
-                          className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border outline-none"
-                          style={{ background: COLORS.panel2, borderColor: COLORS.border }}
+                          className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200/90 bg-slate-50/80 text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-2xs"
                         />
                       </div>
 
                       {/* Module filter */}
-                      <select
-                        value={caseModuleFilter}
-                        onChange={(e) => setCaseModuleFilter(e.target.value)}
-                        className="px-2.5 py-1.5 text-xs rounded-lg border outline-none font-medium"
-                        style={{ background: COLORS.panel2, borderColor: COLORS.border }}
-                      >
-                        <option value="All">All Modules</option>
-                        {runModules.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative group">
+                        <Layers
+                          size={13}
+                          className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                            caseModuleFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                          }`}
+                        />
+                        <select
+                          value={caseModuleFilter}
+                          onChange={(e) => setCaseModuleFilter(e.target.value)}
+                          className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                            caseModuleFilter !== "All"
+                              ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                              : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                          } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+                        >
+                          <option value="All">All Modules</option>
+                          {runModules.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          size={13}
+                          className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                            caseModuleFilter !== "All" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                          }`}
+                        />
+                      </div>
                     </div>
 
                     {/* Status Chips */}
-                    <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                    <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
                       {(["All", "Untested", "Passed", "Failed", "Blocked", "Skipped"] as const).map((st) => {
                         const active = caseStatusFilter === st;
                         return (
                           <button
                             key={st}
                             onClick={() => setCaseStatusFilter(st)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-2xs ${
                               active
                                 ? "bg-indigo-600 text-white shadow-xs"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                : "bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80 hover:border-slate-300"
                             }`}
                           >
                             {st}
