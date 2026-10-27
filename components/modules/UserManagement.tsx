@@ -371,17 +371,6 @@ export function UserManagement() {
             </span>
           </button>
         </div>
-
-        {canCreateUsers && viewTab === "active" && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-white shadow-sm transition-all"
-            style={{ background: COLORS.accent }}
-          >
-            <UserPlus size={14} />
-            <span>Add User</span>
-          </button>
-        )}
       </div>
 
       {/* Metrics Row */}
