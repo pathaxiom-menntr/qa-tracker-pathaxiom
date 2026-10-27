@@ -14,8 +14,6 @@ import {
   LogOut,
   Lock,
   Mail,
-  User as UserIcon,
-  Shield,
   Eye,
   EyeOff,
   Info,
@@ -251,16 +249,12 @@ export default function Home() {
 }
 
 function AuthScreen() {
-  const { login, register, users } = useQAStore();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
+  const { login, users } = useQAStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const hasSuperAdmin = users.some((u) => u.role === "Super Admin");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,27 +271,7 @@ function AuthScreen() {
 
     setBusy(true);
     try {
-      if (mode === "login") {
-        await login(email.trim(), password);
-      } else {
-        if (hasSuperAdmin) {
-          setError("A Super Admin already exists. Only one predefined Super Admin is permitted for QA Tracker.");
-          setBusy(false);
-          return;
-        }
-        if (!name.trim()) {
-          setError("Full name is required.");
-          setBusy(false);
-          return;
-        }
-        if (password.length < 6) {
-          setError("Password must be at least 6 characters.");
-          setBusy(false);
-          return;
-        }
-        // Direct sign-up is strictly locked to Super Admin
-        await register(name.trim(), email.trim(), "Super Admin", password);
-      }
+      await login(email.trim(), password);
     } catch (err: any) {
       setError(err.message || "Authentication failed. Please verify your credentials.");
     } finally {
@@ -337,97 +311,16 @@ function AuthScreen() {
           </div>
         </div>
 
-        {/* Tab switch or Single Super Admin Login Header */}
-        {!hasSuperAdmin ? (
-          <div
-            className="flex mb-4 rounded-lg overflow-hidden border p-0.5"
-            style={{ borderColor: COLORS.border, background: COLORS.panel2 }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setMode("login");
-                setError("");
-              }}
-              className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all"
-              style={{
-                background: mode === "login" ? COLORS.accent : "transparent",
-                color: mode === "login" ? "#fff" : COLORS.sub,
-              }}
-            >
-              Log in
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode("register");
-                setError("");
-              }}
-              className="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all"
-              style={{
-                background: mode === "register" ? COLORS.accent : "transparent",
-                color: mode === "register" ? "#fff" : COLORS.sub,
-              }}
-            >
-              Setup Super Admin
-            </button>
+        <div className="mb-4 text-center">
+          <div className="text-xs font-semibold" style={{ color: COLORS.ink }}>
+            Log in to your account
           </div>
-        ) : (
-          <div className="mb-4 text-center">
-            <div className="text-xs font-semibold" style={{ color: COLORS.ink }}>
-              Log in to your account
-            </div>
-            <div className="text-[11px] mt-0.5" style={{ color: COLORS.sub }}>
-              Enter your credentials to access the QA Tracker
-            </div>
+          <div className="text-[11px] mt-0.5" style={{ color: COLORS.sub }}>
+            Enter your credentials to access the QA Tracker
           </div>
-        )}
-
-        {/* Super Admin Notice Banner in Sign Up Mode */}
-        {mode === "register" ? (
-          <div
-            className="p-3 rounded-xl border flex items-start gap-2.5 text-xs mb-4"
-            style={{ background: COLORS.accent + "10", borderColor: COLORS.accent + "30" }}
-          >
-            <Shield size={16} color={COLORS.accent} className="shrink-0 mt-0.5" />
-            <div className="leading-relaxed">
-              <div className="font-semibold" style={{ color: COLORS.accent }}>
-                Super Admin Only
-              </div>
-              <div className="text-[11px] mt-0.5" style={{ color: COLORS.sub }}>
-                Direct sign up is restricted exclusively to <b>Super Admin</b>. All other users (Admin, QA Team, Client) must be created by their administrators in <b>User Management</b>.
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[11px] mb-4 text-center" style={{ color: COLORS.sub }}>
-            Log in using your assigned credentials.
-          </div>
-        )}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          {mode === "register" && (
-            <div className="relative">
-              <UserIcon
-                size={14}
-                color={COLORS.sub}
-                className="absolute left-3 top-1/2 -translate-y-1/2"
-              />
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Full name"
-                className="w-full pl-9 pr-3 py-2 rounded-lg text-xs outline-none border"
-                style={{
-                  background: COLORS.panel2,
-                  borderColor: COLORS.border,
-                  color: COLORS.ink,
-                }}
-              />
-            </div>
-          )}
-
           <div className="relative">
             <Mail
               size={14}
@@ -460,7 +353,7 @@ function AuthScreen() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "register" ? "Set password (min 6 chars)" : "Enter password"}
+              placeholder="Enter password"
               className="w-full pl-9 pr-8 py-2 rounded-lg text-xs outline-none border"
               style={{
                 background: COLORS.panel2,
@@ -471,33 +364,12 @@ function AuthScreen() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-slate-200 cursor-pointer"
               style={{ color: COLORS.sub }}
             >
               {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
             </button>
           </div>
-
-          {/* Locked Role Display in Sign Up */}
-          {mode === "register" && (
-            <div
-              className="px-3 py-2 rounded-lg border flex items-center justify-between text-xs"
-              style={{ background: COLORS.panel2, borderColor: COLORS.border }}
-            >
-              <div className="flex items-center gap-2">
-                <Shield size={14} color={COLORS.accent} />
-                <span className="font-semibold text-xs" style={{ color: COLORS.ink }}>
-                  Assigned Role: Super Admin
-                </span>
-              </div>
-              <span
-                className="px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                style={{ background: COLORS.accent + "1E", color: COLORS.accent }}
-              >
-                Locked
-              </span>
-            </div>
-          )}
 
           {error && (
             <div
@@ -515,62 +387,58 @@ function AuthScreen() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full py-2.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity"
+            className="w-full py-2.5 rounded-lg text-xs font-semibold text-white shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
             style={{
               background: COLORS.accent,
               opacity: busy ? 0.7 : 1,
             }}
           >
-            {busy
-              ? mode === "login"
-                ? "Logging in…"
-                : "Registering Super Admin…"
-              : mode === "login"
-              ? "Log in"
-              : "Register Super Admin Account"}
+            {busy ? "Logging in…" : "Log in"}
           </button>
         </form>
 
         {/* Quick Demo Login Switchers */}
-        <div className="mt-5 pt-4 border-t" style={{ borderColor: COLORS.border }}>
-          <div className="text-[10px] uppercase font-semibold tracking-wider mb-2 text-center" style={{ color: COLORS.sub }}>
-            Quick Demo Accounts
+        {users.length > 0 && (
+          <div className="mt-5 pt-4 border-t" style={{ borderColor: COLORS.border }}>
+            <div className="text-[10px] uppercase font-semibold tracking-wider mb-2 text-center" style={{ color: COLORS.sub }}>
+              Quick Demo Accounts
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              {users.slice(0, 4).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    setEmail(u.email);
+                    setPassword("password123");
+                    setError("");
+                    setBusy(true);
+                    try {
+                      await login(u.email, "password123");
+                    } catch (err: any) {
+                      setError(err.message || "Failed to log in as " + u.name);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  className="py-1.5 px-2 rounded-lg text-left truncate border hover:bg-slate-100 transition-colors"
+                  style={{
+                    background: COLORS.panel2,
+                    borderColor: COLORS.border,
+                    color: COLORS.ink,
+                  }}
+                  title={`Click to log in as ${u.name} (${u.role})`}
+                >
+                  <div className="font-semibold truncate">{u.name}</div>
+                  <div className="text-[9px]" style={{ color: COLORS.sub }}>
+                    {u.role}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
-            {users.slice(0, 4).map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                disabled={busy}
-                onClick={async () => {
-                  setEmail(u.email);
-                  setPassword("password123");
-                  setError("");
-                  setBusy(true);
-                  try {
-                    await login(u.email, "password123");
-                  } catch (err: any) {
-                    setError(err.message || "Failed to log in as " + u.name);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                className="py-1.5 px-2 rounded-lg text-left truncate border hover:bg-slate-100 transition-colors"
-                style={{
-                  background: COLORS.panel2,
-                  borderColor: COLORS.border,
-                  color: COLORS.ink,
-                }}
-                title={`Click to log in as ${u.name} (${u.role})`}
-              >
-                <div className="font-semibold truncate">{u.name}</div>
-                <div className="text-[9px]" style={{ color: COLORS.sub }}>
-                  {u.role}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
