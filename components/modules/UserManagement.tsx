@@ -191,7 +191,7 @@ function StatCard({
 }
 
 export function UserManagement() {
-  const { users, addUser, editUser, toggleUserStatus, deleteUser, restoreUser, purgeUser, currentUser } = useQAStore();
+  const { users, projects, addUser, editUser, toggleUserStatus, deleteUser, restoreUser, purgeUser, currentUser } = useQAStore();
 
   const [viewTab, setViewTab] = useState<"active" | "trash">("active");
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
@@ -201,6 +201,7 @@ export function UserManagement() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [orgFilter, setOrgFilter] = useState<string>("ALL");
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -208,6 +209,26 @@ export function UserManagement() {
   const isSuperAdmin = currentUser?.role === "Super Admin";
   const isAdmin = currentUser?.role === "Admin";
   const canCreateUsers = isSuperAdmin || isAdmin;
+
+  // Compute distinct available organizations from database & defaults
+  const availableOrgs = useMemo(() => {
+    const set = new Set<string>();
+    ["PathAxiom", "FinTech Global", "HealthPlus Systems"].forEach((o) => set.add(o));
+    (projects || []).forEach((p) => {
+      if (p.client_name) {
+        p.client_name.split(",").map((s) => s.trim()).filter(Boolean).forEach((c) => set.add(c));
+      }
+      if (p.client_names && Array.isArray(p.client_names)) {
+        p.client_names.forEach((c) => set.add(c.trim()));
+      }
+    });
+    (users || []).forEach((u) => {
+      if (u.client_name && u.client_name.trim()) {
+        set.add(u.client_name.trim());
+      }
+    });
+    return Array.from(set).filter(Boolean);
+  }, [projects, users]);
 
   // Determine allowed roles when adding a user (Super Admin role is single & predefined, cannot be created):
   const creatableRoles: Role[] = isSuperAdmin
@@ -247,9 +268,11 @@ export function UserManagement() {
         u.role.toLowerCase().includes(q);
       const matchesRole = roleFilter === "ALL" || u.role === roleFilter;
       const matchesStatus = statusFilter === "ALL" || u.status === statusFilter;
-      return matchesSearch && matchesRole && matchesStatus;
+      const matchesOrg =
+        orgFilter === "ALL" || (u.client_name || "PathAxiom").toLowerCase() === orgFilter.toLowerCase();
+      return matchesSearch && matchesRole && matchesStatus && matchesOrg;
     });
-  }, [viewTab, activeUsers, trashUsers, search, roleFilter, statusFilter]);
+  }, [viewTab, activeUsers, trashUsers, search, roleFilter, statusFilter, orgFilter]);
 
   const activeCount = activeUsers.filter((u) => u.status === "active").length;
   const deactivatedCount = activeUsers.filter((u) => u.status === "deactivated").length;
@@ -478,6 +501,40 @@ export function UserManagement() {
               }`}
             />
           </div>
+
+          {/* Organization Filter (Super Admin) */}
+          {isSuperAdmin && (
+            <div className="relative group">
+              <Building2
+                size={13}
+                className={`absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  orgFilter !== "ALL" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+              <select
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+                className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs ${
+                  orgFilter !== "ALL"
+                    ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
+                    : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
+                } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              >
+                <option value="ALL">All Organizations</option>
+                {availableOrgs.map((org) => (
+                  <option key={org} value={org}>
+                    {org}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={12}
+                className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors ${
+                  orgFilter !== "ALL" ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"
+                }`}
+              />
+            </div>
+          )}
         </div>
 
         {/* Add User Button (Visible to Super Admin and Admin) */}
@@ -854,12 +911,13 @@ export function UserManagement() {
           requirePassword={true}
           isAdmin={isAdmin}
           callerClientName={currentUser?.client_name || ""}
+          availableOrgs={availableOrgs}
           initialData={{
             name: "",
             email: "",
             role: creatableRoles[0] || "QA Engineer",
             password: "",
-            client_name: isAdmin ? (currentUser?.client_name || "PathAxiom") : "PathAxiom",
+            client_name: isAdmin ? (currentUser?.client_name || "PathAxiom") : (availableOrgs[0] || "PathAxiom"),
             permissions: DEFAULT_ROLE_PERMISSIONS[creatableRoles[0] || "QA Engineer"] || [],
           }}
           onClose={() => setShowAddModal(false)}
@@ -880,6 +938,7 @@ export function UserManagement() {
           requirePassword={false}
           isAdmin={isAdmin}
           callerClientName={currentUser?.client_name || ""}
+          availableOrgs={availableOrgs}
           initialData={{
             name: editingUser.name,
             email: editingUser.email,
@@ -919,6 +978,7 @@ function UserModal({
   requirePassword,
   isAdmin = false,
   callerClientName = "",
+  availableOrgs = ["PathAxiom", "FinTech Global", "HealthPlus Systems"],
   initialData,
   onClose,
   onSubmit,
@@ -930,6 +990,7 @@ function UserModal({
   requirePassword: boolean;
   isAdmin?: boolean;
   callerClientName?: string;
+  availableOrgs?: string[];
   initialData: {
     name: string;
     email: string;
@@ -951,7 +1012,20 @@ function UserModal({
   const [name, setName] = useState(initialData.name);
   const [email, setEmail] = useState(initialData.email);
   const [role, setRole] = useState<Role>(initialData.role);
-  const [clientName, setClientName] = useState(initialData.client_name || "PathAxiom");
+
+  // Build organization options including initial value and defaults
+  const orgOptions = useMemo(() => {
+    const set = new Set<string>(availableOrgs);
+    if (initialData.client_name && initialData.client_name.trim()) {
+      set.add(initialData.client_name.trim());
+    }
+    return Array.from(set).filter(Boolean);
+  }, [availableOrgs, initialData.client_name]);
+
+  const [clientName, setClientName] = useState(initialData.client_name || orgOptions[0] || "PathAxiom");
+  const [isCustomOrg, setIsCustomOrg] = useState(false);
+  const [customOrgInput, setCustomOrgInput] = useState("");
+
   const [password, setPassword] = useState(initialData.password || "");
   const [showPassword, setShowPassword] = useState(false);
   const [permissions, setPermissions] = useState<string[]>(
@@ -1008,9 +1082,16 @@ function UserModal({
 
     setBusy(true);
     try {
+      const finalOrg = isCustomOrg ? customOrgInput.trim() : clientName.trim();
+      if (!finalOrg) {
+        setError("Please select or enter an organization.");
+        setBusy(false);
+        return;
+      }
+
       const finalClient = isAdmin
         ? (callerClientName || initialData.client_name || "PathAxiom")
-        : (clientName.trim() || undefined);
+        : finalOrg;
 
       await onSubmit({
         name: name.trim(),
@@ -1175,19 +1256,68 @@ function UserModal({
           ) : (
             <div>
               <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
-                Organization / Client Name
+                Organization / Client Name <span className="text-red-500">*</span>
               </label>
-              <input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="e.g. PathAxiom, FinTech Global, HealthPlus Systems"
-                className="w-full px-3 py-2 rounded-lg text-xs outline-none font-medium"
-                style={{
-                  background: COLORS.panel2,
-                  border: `1px solid ${COLORS.border}`,
-                  color: COLORS.ink,
-                }}
-              />
+              <div className="relative">
+                <select
+                  value={isCustomOrg ? "__NEW__" : clientName}
+                  onChange={(e) => {
+                    if (e.target.value === "__NEW__") {
+                      setIsCustomOrg(true);
+                      setCustomOrgInput("");
+                    } else {
+                      setIsCustomOrg(false);
+                      setClientName(e.target.value);
+                    }
+                  }}
+                  className="w-full appearance-none pl-3 pr-8 py-2 rounded-lg text-xs outline-none cursor-pointer font-medium"
+                  style={{
+                    background: COLORS.panel2,
+                    border: `1px solid ${COLORS.border}`,
+                    color: COLORS.ink,
+                  }}
+                >
+                  {orgOptions.map((org) => (
+                    <option key={org} value={org}>
+                      {org}
+                    </option>
+                  ))}
+                  <option value="__NEW__">+ Add New Organization...</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+              </div>
+
+              {isCustomOrg && (
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    autoFocus
+                    required
+                    value={customOrgInput}
+                    onChange={(e) => {
+                      setCustomOrgInput(e.target.value);
+                      setClientName(e.target.value);
+                    }}
+                    placeholder="Enter new organization name (e.g. Acme Health, GlobalCorp)"
+                    className="flex-1 px-3 py-1.5 rounded-lg text-xs outline-none font-medium"
+                    style={{
+                      background: COLORS.panel2,
+                      border: `1px solid ${COLORS.accent}`,
+                      color: COLORS.ink,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomOrg(false);
+                      setClientName(orgOptions[0] || "PathAxiom");
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg text-xs text-slate-600 hover:bg-slate-200 cursor-pointer border border-slate-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
               <span className="text-[10px] mt-1 block text-slate-500">
                 Users belonging to this organization will be scoped to its projects, defects, and reports.
               </span>
