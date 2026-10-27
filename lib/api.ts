@@ -57,14 +57,14 @@ export const api = {
 
   // ==================== USER MANAGEMENT ====================
   async getUsers(): Promise<{ ok: boolean; users: User[] }> {
-    return handle(await fetch(`${BASE}/users`));
+    return handle(await fetch(`${BASE}/users`, { headers: authHeaders() }));
   },
 
   async createUser(name: string, email: string, role: Role, password = "password123", client_name?: string, assigned_projects?: string[], permissions?: string[]): Promise<{ ok: boolean; user: User }> {
     return handle(
       await fetch(`${BASE}/users`, {
         method: "POST",
-        headers: jsonHeaders,
+        headers: { ...jsonHeaders, ...authHeaders() },
         body: JSON.stringify({ name, email, role, password, client_name, assigned_projects, permissions }),
       })
     );
@@ -74,7 +74,7 @@ export const api = {
     return handle(
       await fetch(`${BASE}/users/${id}`, {
         method: "PUT",
-        headers: jsonHeaders,
+        headers: { ...jsonHeaders, ...authHeaders() },
         body: JSON.stringify(data),
       })
     );
@@ -109,7 +109,7 @@ export const api = {
 
   // ==================== DEFECTS ====================
   async getDefects(): Promise<{ defects: Defect[] }> {
-    return handle(await fetch(`${BASE}/defects`));
+    return handle(await fetch(`${BASE}/defects`, { headers: authHeaders() }));
   },
 
   async createDefect(defect: Defect | Record<string, any>): Promise<any> {
@@ -181,7 +181,7 @@ export const api = {
 
   // ==================== PROJECTS ====================
   async getProjects(): Promise<{ ok: boolean; projects: Project[] }> {
-    return handle(await fetch(`${BASE}/projects`));
+    return handle(await fetch(`${BASE}/projects`, { headers: authHeaders() }));
   },
 
   async createProject(project: Partial<Project>): Promise<{ ok: boolean; project: Project }> {

@@ -20,6 +20,8 @@ export interface User {
   is_deleted?: boolean;
   deleted_at?: string;
   deleted_by?: string;
+  failed_login_attempts?: number;
+  locked_until?: string | null;
 }
 
 export interface Project {

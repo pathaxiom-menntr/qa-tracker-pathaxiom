@@ -1,23 +1,39 @@
 import { NextResponse } from "next/server";
 import { queryDb } from "@/lib/db";
+import { getCaller } from "@/lib/auth-check";
 
-// GET /api/projects - Fetch all projects with their modules and features
-export async function GET() {
+// GET /api/projects - Fetch projects with RBAC & tenant scoping
+export async function GET(req: Request) {
   try {
-    const projects = await queryDb(
-      `SELECT id, code, name, client_name, description, 
-              COALESCE(client_names, '[]'::jsonb) as "client_names",
-              COALESCE(is_shared, false) as "is_shared",
-              COALESCE(modules, '[]'::jsonb) as modules, 
-              COALESCE(features, '{}'::jsonb) as features, 
-              COALESCE(assigned_user_ids, '[]'::jsonb) as "assigned_user_ids",
-              created_at as "created_at", updated_at as "updated_at",
-              COALESCE(is_deleted, false) as "is_deleted",
-              deleted_at,
-              COALESCE(deleted_by, '') as "deleted_by"
-       FROM projects
-       ORDER BY id ASC`
-    );
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ ok: true, projects: [] });
+    }
+
+    let sql = `
+      SELECT id, code, name, client_name, description, 
+             COALESCE(client_names, '[]'::jsonb) as "client_names",
+             COALESCE(is_shared, false) as "is_shared",
+             COALESCE(modules, '[]'::jsonb) as modules, 
+             COALESCE(features, '{}'::jsonb) as features, 
+             COALESCE(assigned_user_ids, '[]'::jsonb) as "assigned_user_ids",
+             created_at as "created_at", updated_at as "updated_at",
+             COALESCE(is_deleted, false) as "is_deleted",
+             deleted_at,
+             COALESCE(deleted_by, '') as "deleted_by"
+      FROM projects
+    `;
+
+    // Multi-tenant scoping: Non-Super Admin roles can only access projects associated with their organization
+    if (caller.role !== "Super Admin") {
+      const callerClient = (caller.client_name || "PathAxiom").replace(/'/g, "''").toLowerCase();
+      const rawClient = (caller.client_name || "PathAxiom").replace(/'/g, "''");
+      sql += ` WHERE (LOWER(COALESCE(client_name, '')) = '${callerClient}' OR client_names @> '["${rawClient}"]'::jsonb)`;
+    }
+
+    sql += ` ORDER BY id ASC`;
+
+    const projects = await queryDb(sql);
     return NextResponse.json({ ok: true, projects });
   } catch (error: any) {
     console.error("GET /api/projects error:", error);
@@ -25,11 +41,16 @@ export async function GET() {
   }
 }
 
-// POST /api/projects - Create a new project
+// POST /api/projects - Create a new project with RBAC & tenant scoping
 export async function POST(req: Request) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to create projects." }, { status: 401 });
+    }
+
     const body = await req.json();
-    const {
+    let {
       code,
       name,
       client_name = "PathAxiom",
@@ -40,6 +61,13 @@ export async function POST(req: Request) {
       features = { General: ["Core"] },
       assigned_user_ids = [],
     } = body;
+
+    // Enforce tenant boundary for non-Super Admin
+    if (caller.role !== "Super Admin") {
+      client_name = caller.client_name || "PathAxiom";
+      client_names = [client_name];
+      is_shared = false;
+    }
 
     if (!code || !name) {
       return NextResponse.json({ error: "Project code and name are required" }, { status: 400 });

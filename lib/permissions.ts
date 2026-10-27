@@ -45,13 +45,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, string[]> = {
 
 /**
  * Checks whether a user has a specific permission.
- * - Super Admin and Admin always have full access.
+ * - Super Admin has full unrestricted access across all modules.
  * - If user.permissions is explicitly defined and non-empty, checks against user.permissions.
  * - Otherwise falls back to DEFAULT_ROLE_PERMISSIONS for their assigned role.
  */
 export function hasPermission(user: User | null | undefined, permissionId: string): boolean {
   if (!user) return false;
-  if (user.role === "Super Admin" || user.role === "Admin") return true;
+  if (user.role === "Super Admin") return true;
 
   if (Array.isArray(user.permissions) && user.permissions.length > 0) {
     return user.permissions.includes(permissionId);
@@ -66,6 +66,6 @@ export function hasPermission(user: User | null | undefined, permissionId: strin
  */
 export function hasAnyPermission(user: User | null | undefined, permissionIds: string[]): boolean {
   if (!user) return false;
-  if (user.role === "Super Admin" || user.role === "Admin") return true;
+  if (user.role === "Super Admin") return true;
   return permissionIds.some((p) => hasPermission(user, p));
 }

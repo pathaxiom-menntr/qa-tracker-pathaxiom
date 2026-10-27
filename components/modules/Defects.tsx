@@ -129,12 +129,14 @@ export function Defects() {
 
   // Role & Client Access Determination
   const isClient = currentUser?.role === "Client";
+  const isAdmin = currentUser?.role === "Admin";
+  const isLockedOrg = isClient || (isAdmin && Boolean(currentUser?.client_name));
   const clientOrgName = currentUser?.client_name || "PathAxiom";
   const userAssignedProjects = currentUser?.assigned_projects || [];
 
   // Filter accessible projects based on role & client restriction
   const accessibleProjects = useMemo(() => {
-    if (isClient) {
+    if (isLockedOrg) {
       return projects.filter(
         (p) =>
           (p.client_name && p.client_name.toLowerCase().includes(clientOrgName.toLowerCase())) ||
@@ -147,11 +149,11 @@ export function Defects() {
       return projects.filter((p) => userAssignedProjects.includes(p.code));
     }
     return projects;
-  }, [projects, isClient, clientOrgName, userAssignedProjects, currentUser]);
+  }, [projects, isLockedOrg, clientOrgName, userAssignedProjects, currentUser]);
 
   // Clients available for filtering
   const availableClients = useMemo(() => {
-    if (isClient) return [clientOrgName];
+    if (isLockedOrg) return [clientOrgName];
     const clientSet = new Set<string>();
     projects.forEach((p) => {
       if (p.client_name) {
@@ -163,11 +165,11 @@ export function Defects() {
     });
     ["PathAxiom", "FinTech Global", "HealthPlus Systems"].forEach((c) => clientSet.add(c));
     return Array.from(clientSet);
-  }, [projects, isClient, clientOrgName]);
+  }, [projects, isLockedOrg, clientOrgName]);
 
   // Filters State
   const [q, setQ] = useState("");
-  const [selectedClient, setSelectedClient] = useState<string>(isClient ? clientOrgName : "All");
+  const [selectedClient, setSelectedClient] = useState<string>(isLockedOrg ? clientOrgName : "All");
   const [selectedProject, setSelectedProject] = useState<string>("All");
   const [modFilter, setModFilter] = useState("All");
   const [sevFilter, setSevFilter] = useState("All");
@@ -177,12 +179,12 @@ export function Defects() {
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [showKpiCharts, setShowKpiCharts] = useState<boolean>(true);
 
-  // Keep client locked for Client user
+  // Keep client locked for Client & Admin users
   useEffect(() => {
-    if (isClient) {
+    if (isLockedOrg) {
       setSelectedClient(clientOrgName);
     }
-  }, [isClient, clientOrgName]);
+  }, [isLockedOrg, clientOrgName]);
 
   // Reset project and module filter when client changes
   const handleClientChange = (clientVal: string) => {
@@ -215,9 +217,9 @@ export function Defects() {
     return Array.from(set);
   }, [selectedProject, accessibleProjects, projectsForClient, defects]);
 
-  // Base defects filtered by Client Access Restriction (Requirement 2)
+  // Base defects filtered by Tenant & Client Access Restriction
   const accessibleDefects = useMemo(() => {
-    if (isClient) {
+    if (isLockedOrg) {
       return defects.filter((d) => {
         const dClient = d.client_name || "";
         const matchesOrg = dClient.toLowerCase() === clientOrgName.toLowerCase();
@@ -231,7 +233,7 @@ export function Defects() {
       return defects.filter((d) => userAssignedProjects.includes(d.project_code || ""));
     }
     return defects;
-  }, [defects, isClient, clientOrgName, accessibleProjects, currentUser, userAssignedProjects]);
+  }, [defects, isLockedOrg, clientOrgName, accessibleProjects, currentUser, userAssignedProjects]);
 
   // Counts for Active Defects vs Recycle Bin / Trash
   const activeCount = useMemo(() => accessibleDefects.filter((d) => !d.is_deleted).length, [accessibleDefects]);
@@ -423,7 +425,7 @@ export function Defects() {
       setShowNewModField(false);
       setShowNewFeatField(false);
 
-      const targetClient = isClient ? clientOrgName : selectedClient !== "All" ? selectedClient : (accessibleProjects[0]?.client_name || "PathAxiom");
+      const targetClient = isLockedOrg ? clientOrgName : selectedClient !== "All" ? selectedClient : (accessibleProjects[0]?.client_name || "PathAxiom");
       setFormClient(targetClient);
 
       const isMatch = (p: Project, c: string) => {
@@ -1062,17 +1064,17 @@ export function Defects() {
               />
               <select
                 value={selectedClient}
-                disabled={isClient}
+                disabled={isLockedOrg}
                 onChange={(e) => handleClientChange(e.target.value)}
                 className={`appearance-none pl-9 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[180px] truncate ${
                   selectedClient !== "All"
                     ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
                     : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
                 } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
-                style={{ opacity: isClient ? 0.75 : 1 }}
-                title={isClient ? "Client filter is locked to your organization" : "Filter by Client Organization"}
+                style={{ opacity: isLockedOrg ? 0.75 : 1 }}
+                title={isLockedOrg ? "Client filter is locked to your organization" : "Filter by Client Organization"}
               >
-                {!isClient && <option value="All">All Clients</option>}
+                {!isLockedOrg && <option value="All">All Clients</option>}
                 {availableClients.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -1619,7 +1621,7 @@ export function Defects() {
                   </label>
                   <select
                     value={formClient}
-                    disabled={isClient}
+                    disabled={isLockedOrg}
                     onChange={(e) => handleFormClientChange(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-xs outline-none cursor-pointer"
                     style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, color: COLORS.ink }}

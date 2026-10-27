@@ -1,12 +1,59 @@
 import { NextResponse } from "next/server";
 import { queryDb } from "@/lib/db";
+import { getCaller } from "@/lib/auth-check";
 
-// PUT /api/projects/[id] - Update project details, modules, features, or assignments
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+// PUT /api/projects/[id] - Update project details with RBAC & tenant scoping
+export async function PUT(req: Request, { params }: RouteParams) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to update projects." }, { status: 401 });
+    }
+
     const { id } = await params;
+    const projId = parseInt(id, 10);
+    if (isNaN(projId)) {
+      return NextResponse.json({ error: "Invalid project ID" }, { status: 400 });
+    }
+
+    // Verify existing project
+    const existing = await queryDb<{ id: number; client_name: string; client_names: any }>(
+      `SELECT id, client_name, client_names FROM projects WHERE id = ${projId}`
+    );
+    if (existing.length === 0) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    const currentProj = existing[0];
+
+    // Multi-tenant check
+    if (caller.role !== "Super Admin") {
+      const callerClient = (caller.client_name || "").toLowerCase();
+      const projClient = (currentProj.client_name || "").toLowerCase();
+      const clientNames = Array.isArray(currentProj.client_names)
+        ? currentProj.client_names.map((c: string) => (c || "").toLowerCase())
+        : [];
+
+      if (!callerClient || (callerClient !== projClient && !clientNames.includes(callerClient))) {
+        return NextResponse.json(
+          { error: "Access denied. You can only manage projects belonging to your organization." },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await req.json();
-    const { name, client_name, client_names, is_shared, description, modules, features, assigned_user_ids } = body;
+    let { name, client_name, client_names, is_shared, description, modules, features, assigned_user_ids } = body;
+
+    // Prevent changing project client organization for non-superadmin
+    if (caller.role !== "Super Admin") {
+      client_name = currentProj.client_name;
+      client_names = [currentProj.client_name];
+      is_shared = false;
+    }
 
     const updates: string[] = ["updated_at = NOW()"];
 
@@ -19,7 +66,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (features) updates.push(`features = '${JSON.stringify(features).replace(/'/g, "''")}'::jsonb`);
     if (assigned_user_ids) updates.push(`assigned_user_ids = '${JSON.stringify(assigned_user_ids).replace(/'/g, "''")}'::jsonb`);
 
-    const sql = `UPDATE projects SET ${updates.join(", ")} WHERE id = ${parseInt(id, 10)} RETURNING *;`;
+    const sql = `UPDATE projects SET ${updates.join(", ")} WHERE id = ${projId} RETURNING *;`;
     const res = await queryDb(sql);
 
     if (res.length === 0) {
@@ -34,8 +81,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // DELETE /api/projects/[id] - Soft delete to Recycle Bin (or permanently purge if ?purge=true)
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: RouteParams) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to delete projects." }, { status: 401 });
+    }
+
     const { id } = await params;
     const projId = parseInt(id, 10);
     if (isNaN(projId)) {
@@ -43,7 +95,39 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
     const { searchParams } = new URL(req.url);
     const purge = searchParams.get("purge") === "true";
-    const deletedBy = searchParams.get("deleted_by") || "Admin";
+    const deletedBy = searchParams.get("deleted_by") || caller.name || "Admin";
+
+    // Verify existing project
+    const existing = await queryDb<{ id: number; client_name: string; client_names: any }>(
+      `SELECT id, client_name, client_names FROM projects WHERE id = ${projId}`
+    );
+    if (existing.length === 0) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+    const currentProj = existing[0];
+
+    // Multi-tenant check
+    if (caller.role !== "Super Admin") {
+      const callerClient = (caller.client_name || "").toLowerCase();
+      const projClient = (currentProj.client_name || "").toLowerCase();
+      const clientNames = Array.isArray(currentProj.client_names)
+        ? currentProj.client_names.map((c: string) => (c || "").toLowerCase())
+        : [];
+
+      if (!callerClient || (callerClient !== projClient && !clientNames.includes(callerClient))) {
+        return NextResponse.json(
+          { error: "Access denied. You can only delete projects belonging to your organization." },
+          { status: 403 }
+        );
+      }
+
+      if (purge) {
+        return NextResponse.json(
+          { error: "Only Super Admin is authorized to permanently purge projects." },
+          { status: 403 }
+        );
+      }
+    }
 
     if (purge) {
       await queryDb(`DELETE FROM projects WHERE id = ${projId}`);

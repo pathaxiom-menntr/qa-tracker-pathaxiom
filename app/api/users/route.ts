@@ -1,22 +1,39 @@
 import { NextResponse } from "next/server";
 import { queryDb, execDb } from "@/lib/db";
+import { getCaller } from "@/lib/auth-check";
 import bcrypt from "bcryptjs";
 
-// GET /api/users - Fetch all users from PostgreSQL
-export async function GET() {
+// GET /api/users - Fetch users from PostgreSQL with strict RBAC and tenant boundaries
+export async function GET(req: Request) {
   try {
     await execDb("ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions jsonb DEFAULT '[]'::jsonb;").catch(() => {});
-    const users = await queryDb(
-      `SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, 
-              COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, 
-              COALESCE(permissions, '[]'::jsonb) as permissions, 
-              created_at as "createdAt",
-              COALESCE(is_deleted, false) as is_deleted,
-              deleted_at,
-              COALESCE(deleted_by, '') as deleted_by
-       FROM users
-       ORDER BY id DESC`
-    );
+    const caller = await getCaller(req);
+
+    // If caller is unauthenticated, return an empty array to prevent data leakage
+    if (!caller) {
+      return NextResponse.json({ ok: true, users: [] });
+    }
+
+    let sql = `
+      SELECT id, name, email, role, COALESCE(status, 'active') as status, client_name, 
+             COALESCE(assigned_projects, '[]'::jsonb) as assigned_projects, 
+             COALESCE(permissions, '[]'::jsonb) as permissions, 
+             created_at as "createdAt",
+             COALESCE(is_deleted, false) as is_deleted,
+             deleted_at,
+             COALESCE(deleted_by, '') as deleted_by
+      FROM users
+    `;
+
+    // Strict multi-tenant scoping: Only Super Admin has cross-organization visibility
+    if (caller.role !== "Super Admin") {
+      const callerClient = (caller.client_name || "").replace(/'/g, "''").toLowerCase();
+      sql += ` WHERE LOWER(COALESCE(client_name, '')) = '${callerClient}'`;
+    }
+
+    sql += ` ORDER BY id DESC`;
+
+    const users = await queryDb(sql);
     return NextResponse.json({ ok: true, users });
   } catch (error: any) {
     console.error("GET /api/users error:", error);
@@ -24,11 +41,20 @@ export async function GET() {
   }
 }
 
-// POST /api/users - Create new user in PostgreSQL
+// POST /api/users - Create new user in PostgreSQL with RBAC & tenant scoping
 export async function POST(req: Request) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to create users." }, { status: 401 });
+    }
+
+    if (caller.role !== "Super Admin" && caller.role !== "Admin") {
+      return NextResponse.json({ error: "Insufficient permissions to create users." }, { status: 403 });
+    }
+
     const body = await req.json();
-    const {
+    let {
       name,
       email,
       role = "QA Engineer",
@@ -44,6 +70,24 @@ export async function POST(req: Request) {
         { error: "Super Admin is a single predefined role. Adding additional Super Admin accounts is prohibited." },
         { status: 403 }
       );
+    }
+
+    // Admin (Org Admin) Restrictions:
+    if (caller.role === "Admin") {
+      if (role === "Admin") {
+        return NextResponse.json(
+          { error: "Admins cannot create other Admin accounts. Only QA Manager, QA Lead, QA Engineer, or Client roles can be created." },
+          { status: 403 }
+        );
+      }
+      if (!caller.client_name) {
+        return NextResponse.json(
+          { error: "Your admin account is not assigned to an organization." },
+          { status: 400 }
+        );
+      }
+      // Force user into Admin's assigned organization
+      client_name = caller.client_name;
     }
 
     if (!name || !email) {

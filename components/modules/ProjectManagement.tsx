@@ -56,6 +56,8 @@ export function ProjectManagement() {
   } = useQAStore();
 
   const isClient = currentUser?.role === "Client";
+  const isAdmin = currentUser?.role === "Admin";
+  const isLockedOrg = isClient || (isAdmin && Boolean(currentUser?.client_name));
   const clientOrgName = currentUser?.client_name || "PathAxiom";
   const canManageProjects = hasPermission(currentUser, "projects:manage") || currentUser?.role === "Super Admin" || currentUser?.role === "Admin";
 
@@ -65,7 +67,14 @@ export function ProjectManagement() {
 
   // Filter & Search states
   const [search, setSearch] = useState("");
-  const [selectedClient, setSelectedClient] = useState<string>(isClient ? clientOrgName : "All");
+  const [selectedClient, setSelectedClient] = useState<string>(isLockedOrg ? clientOrgName : "All");
+
+  // Keep client locked for Client & Admin users
+  React.useEffect(() => {
+    if (isLockedOrg) {
+      setSelectedClient(clientOrgName);
+    }
+  }, [isLockedOrg, clientOrgName]);
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -79,7 +88,7 @@ export function ProjectManagement() {
 
   // Available clients
   const availableClients = useMemo(() => {
-    if (isClient) return [clientOrgName];
+    if (isLockedOrg) return [clientOrgName];
     const clientSet = new Set<string>();
     projects.forEach((p) => {
       if (p.client_name) {
@@ -92,7 +101,7 @@ export function ProjectManagement() {
     // Ensure default clients exist if none
     ["PathAxiom", "FinTech Global", "HealthPlus Systems"].forEach((c) => clientSet.add(c));
     return Array.from(clientSet);
-  }, [projects, isClient, clientOrgName]);
+  }, [projects, isLockedOrg, clientOrgName]);
 
   // Filtered projects based on active sub-tab
   const filteredProjects = useMemo(() => {
@@ -102,7 +111,7 @@ export function ProjectManagement() {
         ? p.client_names.map((c) => c.toLowerCase())
         : (p.client_name || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
 
-      if (isClient) {
+      if (isLockedOrg) {
         const matchesClient = pClients.includes(clientOrgName.toLowerCase()) || Boolean(p.is_shared);
         if (!matchesClient) return false;
       }
@@ -305,15 +314,16 @@ export function ProjectManagement() {
             />
             <select
               value={selectedClient}
-              disabled={isClient}
+              disabled={isLockedOrg}
               onChange={(e) => setSelectedClient(e.target.value)}
               className={`appearance-none pl-8 pr-8 py-2 text-xs font-medium rounded-xl border outline-none cursor-pointer transition-all shadow-2xs max-w-[190px] truncate ${
                 selectedClient !== "All"
                   ? "bg-indigo-50/60 border-indigo-200 text-indigo-950 font-semibold"
                   : "bg-slate-50/80 hover:bg-slate-100/70 border-slate-200/90 text-slate-700 hover:border-slate-300"
               } focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15`}
+              title={isLockedOrg ? "Client filter is locked to your organization" : "Filter by Client Organization"}
             >
-              {!isClient && (
+              {!isLockedOrg && (
                 <>
                   <option value="All">All Clients</option>
                   <option value="Shared / Multi-Tenant">Shared / Multi-Tenant</option>
@@ -620,7 +630,7 @@ export function ProjectManagement() {
         <CreateProjectModal
           onClose={() => setShowCreateModal(false)}
           availableClients={availableClients}
-          isClient={isClient}
+          isClient={isLockedOrg}
           clientOrgName={clientOrgName}
           users={users}
           existingCodes={projects.map((p) => p.code)}
@@ -647,7 +657,7 @@ export function ProjectManagement() {
         <EditProjectModal
           project={editingProject}
           availableClients={availableClients}
-          isClient={isClient}
+          isClient={isLockedOrg}
           onClose={() => setEditingProject(null)}
           onUpdate={async (patch) => {
             await updateProject(editingProject.id, patch);

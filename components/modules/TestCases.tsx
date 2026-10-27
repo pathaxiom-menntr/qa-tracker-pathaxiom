@@ -320,9 +320,24 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
     return currentRunsPool[0];
   }, [currentRunsPool, selectedRunId]);
 
-  // Filter test runs
+  // Accessible projects based on tenant boundaries
+  const accessibleProjects = useMemo(() => {
+    if (currentUser?.role === "Super Admin") return projects;
+    const client = (currentUser?.client_name || "").toLowerCase();
+    return projects.filter(
+      (p) =>
+        (p.client_name || "").toLowerCase() === client ||
+        (p.client_names && p.client_names.some((c: string) => c.toLowerCase() === client))
+    );
+  }, [projects, currentUser]);
+
+  // Filter test runs with tenant boundaries
   const filteredRuns = useMemo(() => {
+    const allowedProjectNames = accessibleProjects.map((p) => p.name.toLowerCase());
     return currentRunsPool.filter((r) => {
+      if (currentUser?.role !== "Super Admin" && allowedProjectNames.length > 0) {
+        if (!allowedProjectNames.includes(r.project_name.toLowerCase())) return false;
+      }
       const matchSearch =
         runSearch === "" ||
         r.title.toLowerCase().includes(runSearch.toLowerCase()) ||
@@ -333,7 +348,7 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
       const matchStatus = statusFilter === "All" || r.status === statusFilter;
       return matchSearch && matchEnv && matchProject && matchStatus;
     });
-  }, [currentRunsPool, runSearch, envFilter, projectFilter, statusFilter]);
+  }, [currentRunsPool, accessibleProjects, currentUser, runSearch, envFilter, projectFilter, statusFilter]);
 
   // Compute metrics for active run
   const runMetrics = useMemo(() => {

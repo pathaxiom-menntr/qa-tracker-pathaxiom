@@ -335,21 +335,6 @@ export function QAStoreProvider({ children }: { children: React.ReactNode }) {
         return true;
       }
     } catch (e: any) {
-      if (
-        e?.message?.includes("401") ||
-        e?.message?.toLowerCase().includes("invalid") ||
-        e?.message?.toLowerCase().includes("unauthorized")
-      ) {
-        throw new Error("Invalid email or password.");
-      }
-      const matched = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-      if (matched) {
-        if (matched.status === "deactivated") {
-          throw new Error("This account is deactivated. Please contact your administrator.");
-        }
-        setCurrentUser(matched);
-        return true;
-      }
       throw e;
     }
     return false;

@@ -1,13 +1,40 @@
 import { NextResponse } from "next/server";
 import { queryDb, execDb } from "@/lib/db";
+import { getCaller } from "@/lib/auth-check";
 
-// PUT /api/defects/[id] - Update defect details
+// PUT /api/defects/[id] - Update defect details with RBAC & tenant scoping
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to update defects." }, { status: 401 });
+    }
+
     const { id } = await params;
     const cleanId = decodeURIComponent(id).trim();
+
+    // Verify defect exists and check tenant boundary
+    const existing = await queryDb<{ id: string; client_name: string | null }>(
+      `SELECT id, client_name FROM defects WHERE id = '${cleanId.replace(/'/g, "''")}'`
+    );
+    if (existing.length === 0) {
+      return NextResponse.json({ error: "Defect not found" }, { status: 404 });
+    }
+    const currentDefect = existing[0];
+
+    if (caller.role !== "Super Admin") {
+      const callerClient = (caller.client_name || "").toLowerCase();
+      const defectClient = (currentDefect.client_name || "").toLowerCase();
+      if (!callerClient || callerClient !== defectClient) {
+        return NextResponse.json(
+          { error: "Access denied. You can only modify defects belonging to your organization." },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await req.json();
-    const {
+    let {
       title,
       description,
       module,
@@ -19,8 +46,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       client_name,
       project_name,
       project_code,
-      updated_by = "QA Team",
+      updated_by = caller.name || "QA Team",
     } = body;
+
+    // Prevent changing client_name to another organization for non-superadmin
+    if (caller.role !== "Super Admin") {
+      client_name = caller.client_name || currentDefect.client_name;
+    }
 
     const updates: string[] = ["updated_at = NOW()", `updated_by = '${updated_by.replace(/'/g, "''")}'`];
 
@@ -63,11 +95,43 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 // DELETE /api/defects/[id] - Soft delete to Recycle Bin (or permanently purge if ?purge=true)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to delete defects." }, { status: 401 });
+    }
+
     const { id } = await params;
     const cleanId = decodeURIComponent(id).trim();
     const { searchParams } = new URL(req.url);
     const purge = searchParams.get("purge") === "true";
-    const deletedBy = searchParams.get("deleted_by") || "QA Team";
+    const deletedBy = searchParams.get("deleted_by") || caller.name || "QA Team";
+
+    // Verify defect exists and check tenant boundary
+    const existing = await queryDb<{ id: string; client_name: string | null }>(
+      `SELECT id, client_name FROM defects WHERE id = '${cleanId.replace(/'/g, "''")}'`
+    );
+    if (existing.length === 0) {
+      return NextResponse.json({ error: "Defect not found" }, { status: 404 });
+    }
+    const currentDefect = existing[0];
+
+    if (caller.role !== "Super Admin") {
+      const callerClient = (caller.client_name || "").toLowerCase();
+      const defectClient = (currentDefect.client_name || "").toLowerCase();
+      if (!callerClient || callerClient !== defectClient) {
+        return NextResponse.json(
+          { error: "Access denied. You can only delete defects belonging to your organization." },
+          { status: 403 }
+        );
+      }
+
+      if (purge) {
+        return NextResponse.json(
+          { error: "Only Super Admin is authorized to permanently purge defects." },
+          { status: 403 }
+        );
+      }
+    }
 
     await execDb(`
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT FALSE;

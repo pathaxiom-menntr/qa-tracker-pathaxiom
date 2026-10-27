@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { queryDb, execDb } from "@/lib/db";
+import { getCaller } from "@/lib/auth-check";
 
-// GET /api/defects - Fetch all defects from PostgreSQL
+// GET /api/defects - Fetch defects from PostgreSQL with RBAC & tenant scoping
 export async function GET(req: Request) {
   try {
     await execDb(`
@@ -11,9 +12,19 @@ export async function GET(req: Request) {
       ALTER TABLE defects ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb;
     `).catch(() => {});
 
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ ok: true, defects: [] });
+    }
+
     const { searchParams } = new URL(req.url);
-    const clientFilter = searchParams.get("client");
+    let clientFilter = searchParams.get("client");
     const projectFilter = searchParams.get("project");
+
+    // Strict multi-tenant enforcement: Non-Super Admin roles cannot view cross-org defects
+    if (caller.role !== "Super Admin") {
+      clientFilter = caller.client_name || "PathAxiom";
+    }
 
     let sql = `
       SELECT id, 
@@ -58,11 +69,16 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/defects - Create a new defect in PostgreSQL
+// POST /api/defects - Create a new defect in PostgreSQL with RBAC & tenant scoping
 export async function POST(req: Request) {
   try {
+    const caller = await getCaller(req);
+    if (!caller) {
+      return NextResponse.json({ error: "Authentication required to create defects." }, { status: 401 });
+    }
+
     const body = await req.json();
-    const {
+    let {
       id,
       client_name = "PathAxiom",
       project_name = "Assessment Platform",
@@ -74,10 +90,15 @@ export async function POST(req: Request) {
       title,
       description = "",
       status = "Open",
-      created_by = "QA Team",
+      created_by = caller.name || "QA Team",
       assignee = "Unassigned",
       attachments = [],
     } = body;
+
+    // Enforce tenant boundary for Admin / Client
+    if (caller.role !== "Super Admin") {
+      client_name = caller.client_name || "PathAxiom";
+    }
 
     if (!title || !module) {
       return NextResponse.json({ error: "Title and Module are required" }, { status: 400 });

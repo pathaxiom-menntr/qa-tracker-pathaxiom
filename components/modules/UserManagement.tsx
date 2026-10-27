@@ -25,6 +25,7 @@ import {
   RotateCcw,
   AlertTriangle,
   ChevronDown,
+  Building2,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Role, User } from "@/lib/types";
@@ -215,8 +216,25 @@ export function UserManagement() {
     ? ["QA Manager", "QA Lead", "QA Engineer", "Client"]
     : [];
 
-  const activeUsers = useMemo(() => users.filter((u) => !u.is_deleted), [users]);
-  const trashUsers = useMemo(() => users.filter((u) => !!u.is_deleted), [users]);
+  const activeUsers = useMemo(() => {
+    let list = users.filter((u) => !u.is_deleted);
+    if (isAdmin && currentUser?.client_name) {
+      list = list.filter(
+        (u) => (u.client_name || "").toLowerCase() === currentUser.client_name!.toLowerCase()
+      );
+    }
+    return list;
+  }, [users, isAdmin, currentUser]);
+
+  const trashUsers = useMemo(() => {
+    let list = users.filter((u) => !!u.is_deleted);
+    if (isAdmin && currentUser?.client_name) {
+      list = list.filter(
+        (u) => (u.client_name || "").toLowerCase() === currentUser.client_name!.toLowerCase()
+      );
+    }
+    return list;
+  }, [users, isAdmin, currentUser]);
 
   // Filtered users list based on active sub-tab
   const filteredUsers = useMemo(() => {
@@ -240,8 +258,12 @@ export function UserManagement() {
   const canManageTargetUser = (target: User) => {
     if (isSuperAdmin) return true;
     if (isAdmin) {
-      // Admin can manage QA roles and Clients, but not Super Admin or other Admins
-      return target.role !== "Super Admin" && target.role !== "Admin";
+      // Must belong to admin's assigned organization
+      const callerOrg = (currentUser?.client_name || "").toLowerCase();
+      const targetOrg = (target.client_name || "").toLowerCase();
+      const sameOrg = callerOrg && targetOrg && callerOrg === targetOrg;
+      // Admin can manage QA roles and Clients in their own org, but not Super Admin or other Admins
+      return sameOrg && target.role !== "Super Admin" && target.role !== "Admin";
     }
     return false;
   };
@@ -261,11 +283,11 @@ export function UserManagement() {
           <span>
             {isSuperAdmin ? (
               <>
-                Logged in as <b>Super Admin</b>: You have full authority to provision credentials, assign roles, and define <b>custom permissions</b> for all users.
+                Logged in as <b>Super Admin</b>: You have full authority across all organizations to provision credentials, assign roles, and define <b>custom permissions</b>.
               </>
             ) : isAdmin ? (
               <>
-                Logged in as <b>Admin</b>: You have authorization to manage credentials and customize <b>permissions</b> for QA Managers, QA Leads, QA Engineers, and Clients.
+                Logged in as <b>Admin ({currentUser?.client_name || "Assigned Organization"})</b>: Managing user accounts within your organization. You can provision credentials and manage permissions for QA Managers, QA Leads, QA Engineers, and Clients.
               </>
             ) : (
               <>
@@ -567,7 +589,7 @@ export function UserManagement() {
                         >
                           {u.role}
                         </span>
-                        {u.role === "Client" && (
+                        {u.role !== "Super Admin" && (
                           <span className="block text-[10px] text-slate-500 font-medium mt-0.5">
                             Org: {u.client_name || "PathAxiom"}
                           </span>
@@ -821,22 +843,24 @@ export function UserManagement() {
       {/* Add User Modal */}
       {showAddModal && (
         <UserModal
-          title={isSuperAdmin ? "Add User (Super Admin)" : "Add User (Admin)"}
+          title={isSuperAdmin ? "Add User (Super Admin)" : `Add User (${currentUser?.client_name || "Admin"})`}
           subtitle={
             isSuperAdmin
               ? "As Super Admin, provision credentials for Admins, QA Leads, QA Engineers, or Clients and define what they can do."
-              : "As Admin, provision credentials for a QA team member or Client and define what they can do."
+              : `As Admin, provision credentials for QA team members or Clients for ${currentUser?.client_name || "your organization"}.`
           }
           submitLabel="Add User"
           availableRoles={creatableRoles}
           requirePassword={true}
+          isAdmin={isAdmin}
+          callerClientName={currentUser?.client_name || ""}
           initialData={{
             name: "",
             email: "",
-            role: creatableRoles[0] || "Admin",
+            role: creatableRoles[0] || "QA Engineer",
             password: "",
-            client_name: "PathAxiom",
-            permissions: DEFAULT_ROLE_PERMISSIONS[creatableRoles[0] || "Admin"] || [],
+            client_name: isAdmin ? (currentUser?.client_name || "PathAxiom") : "PathAxiom",
+            permissions: DEFAULT_ROLE_PERMISSIONS[creatableRoles[0] || "QA Engineer"] || [],
           }}
           onClose={() => setShowAddModal(false)}
           onSubmit={async (data) => {
@@ -854,12 +878,14 @@ export function UserManagement() {
           submitLabel="Save Changes"
           availableRoles={editingUser.role === "Super Admin" ? ["Super Admin"] : creatableRoles}
           requirePassword={false}
+          isAdmin={isAdmin}
+          callerClientName={currentUser?.client_name || ""}
           initialData={{
             name: editingUser.name,
             email: editingUser.email,
             role: editingUser.role,
             password: "",
-            client_name: editingUser.client_name || "PathAxiom",
+            client_name: editingUser.client_name || (isAdmin ? currentUser?.client_name : "PathAxiom"),
             permissions:
               editingUser.permissions && editingUser.permissions.length > 0
                 ? editingUser.permissions
@@ -891,6 +917,8 @@ function UserModal({
   submitLabel,
   availableRoles,
   requirePassword,
+  isAdmin = false,
+  callerClientName = "",
   initialData,
   onClose,
   onSubmit,
@@ -900,6 +928,8 @@ function UserModal({
   submitLabel: string;
   availableRoles: Role[];
   requirePassword: boolean;
+  isAdmin?: boolean;
+  callerClientName?: string;
   initialData: {
     name: string;
     email: string;
@@ -978,12 +1008,16 @@ function UserModal({
 
     setBusy(true);
     try {
+      const finalClient = isAdmin
+        ? (callerClientName || initialData.client_name || "PathAxiom")
+        : (clientName.trim() || undefined);
+
       await onSubmit({
         name: name.trim(),
         email: email.trim(),
         role,
         password: password.trim() || undefined,
-        client_name: role === "Client" ? clientName.trim() : undefined,
+        client_name: finalClient,
         permissions,
       });
     } catch (err: any) {
@@ -1127,13 +1161,23 @@ function UserModal({
             </div>
           </div>
 
-          {role === "Client" && (
+          {isAdmin ? (
             <div>
               <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
-                Client Organization / Company <span className="text-red-500">*</span>
+                Assigned Organization (Fixed)
+              </label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-800">
+                <Building2 size={14} className="text-indigo-600" />
+                <span>{callerClientName || "Your Organization"}</span>
+                <span className="ml-auto text-[10px] text-slate-500 font-normal">Assigned by Admin</span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs block mb-1 font-semibold" style={{ color: COLORS.ink }}>
+                Organization / Client Name
               </label>
               <input
-                required
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="e.g. PathAxiom, FinTech Global, HealthPlus Systems"
@@ -1145,7 +1189,7 @@ function UserModal({
                 }}
               />
               <span className="text-[10px] mt-1 block text-slate-500">
-                This client will strictly view defects and projects belonging to this organization.
+                Users belonging to this organization will be scoped to its projects, defects, and reports.
               </span>
             </div>
           )}
