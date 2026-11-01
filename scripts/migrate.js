@@ -1,182 +1,137 @@
+#!/usr/bin/env node
+/**
+ * QA Tracker Database Migration Runner
+ * Standardized migration execution for Local, Docker, and Azure Container Apps.
+ */
+
 const { Pool } = require("pg");
+const fs = require("fs");
+const path = require("path");
+
+// Load .env or .env.local if available without external dependencies
+function loadEnvFile(envPath) {
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, "utf-8").split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+}
+
+loadEnvFile(path.resolve(__dirname, "../.env.local"));
+loadEnvFile(path.resolve(__dirname, "../.env"));
+
+const connectionString =
+  process.env.DATABASE_URL ||
+  "postgres://qa_user:qa_password@localhost:5432/qa_tracker";
+
+const isAzure =
+  connectionString.includes("azure.com") ||
+  connectionString.includes("postgres.database.azure.com");
+
+const useSsl =
+  process.env.DB_SSL === "true" ||
+  isAzure ||
+  connectionString.includes("sslmode=require");
+
+console.log("=================================================");
+console.log("🚀 QA Tracker Enterprise Database Migration");
+console.log("=================================================");
+console.log(`Connecting to: ${connectionString.replace(/:([^:@]+)@/, ":****@")}`);
+console.log(`SSL Enabled:   ${useSsl ? "YES (Azure/Secure)" : "NO (Standard)"}`);
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgres://qa_user:qa_password@localhost:5432/qa_tracker",
+  connectionString,
+  ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+  connectionTimeoutMillis: 10000,
 });
+
+const REQUIRED_TABLES = [
+  "users",
+  "projects",
+  "defects",
+  "cross_browsers",
+  "test_portals",
+  "reports",
+  "test_runs",
+  "vapt_findings"
+];
 
 async function runMigration() {
   const client = await pool.connect();
   try {
-    console.log("Running migration...");
-
-    // 1. Create projects table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id SERIAL PRIMARY KEY,
-        code TEXT UNIQUE NOT NULL,
-        name TEXT NOT NULL,
-        client_name TEXT NOT NULL,
-        description TEXT,
-        modules JSONB DEFAULT '["Admin Portal", "Assessment Flow", "Coding Worker", "User Management"]'::jsonb,
-        features JSONB DEFAULT '{"Admin Portal": ["User CRUD", "Roles and Permissions"], "Assessment Flow": ["Test Launch", "Submission"], "Coding Worker": ["Execution Engine", "Output Diff"], "User Management": ["Account Provisioning", "Status Toggle"]}'::jsonb,
-        assigned_user_ids JSONB DEFAULT '[]'::jsonb,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-
-    // 2. Add columns to defects table
-    await client.query(`
-      ALTER TABLE defects ADD COLUMN IF NOT EXISTS client_name TEXT DEFAULT 'PathAxiom';
-      ALTER TABLE defects ADD COLUMN IF NOT EXISTS project_name TEXT DEFAULT 'Assessment Platform';
-      ALTER TABLE defects ADD COLUMN IF NOT EXISTS project_code TEXT DEFAULT 'PRJ-001';
-      ALTER TABLE defects ADD COLUMN IF NOT EXISTS feature TEXT DEFAULT 'General';
-      ALTER TABLE defects ADD COLUMN IF NOT EXISTS assignee TEXT DEFAULT 'Unassigned';
-    `);
-
-    // 3. Add columns to users table
-    await client.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS client_name TEXT DEFAULT NULL;
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_projects JSONB DEFAULT '[]'::jsonb;
-    `);
-
-    // 4. Seed default projects if none exist
-    const { rows: existingProjects } = await client.query("SELECT COUNT(*) FROM projects");
-    if (parseInt(existingProjects[0].count) === 0) {
-      console.log("Seeding initial projects...");
-      await client.query(`
-        INSERT INTO projects (code, name, client_name, description, modules, features, assigned_user_ids)
-        VALUES 
-        (
-          'PRJ-001', 
-          'Assessment Platform', 
-          'PathAxiom', 
-          'Next-gen developer assessment engine with live code evaluation and proctoring',
-          '["Admin Portal", "Assessment Flow", "Coding Worker", "User Management", "Analytics"]'::jsonb,
-          '{
-            "Admin Portal": ["User CRUD", "Roles and Permissions", "Test Config"],
-            "Assessment Flow": ["Test Launch", "Timer Service", "Submission Flow"],
-            "Coding Worker": ["Docker Sandbox", "Execution Engine", "Output Diff"],
-            "User Management": ["Account Provisioning", "Status Toggle", "Password Reset"],
-            "Analytics": ["Score Aggregation", "Cohort Reports"]
-          }'::jsonb,
-          '[]'::jsonb
-        ),
-        (
-          'PRJ-002', 
-          'Payment Gateway & Checkout', 
-          'FinTech Global', 
-          'Multi-currency payment processing and reconciliation portal',
-          '["Checkout UI", "Webhook Processing", "Refund Engine", "Merchant Dashboard"]'::jsonb,
-          '{
-            "Checkout UI": ["Card Input", "UPI QR Flow", "3D Secure Redirect"],
-            "Webhook Processing": ["Stripe Listener", "PayPal Callback", "Retry Worker"],
-            "Refund Engine": ["Partial Refunds", "Ledger Audit", "Reversal API"],
-            "Merchant Dashboard": ["Settlement Reports", "API Keys Management"]
-          }'::jsonb,
-          '[]'::jsonb
-        ),
-        (
-          'PRJ-003', 
-          'HealthPlus EHR Mobile', 
-          'HealthPlus Systems', 
-          'HIPAA-compliant Electronic Health Record and patient telemedicine platform',
-          '["Patient Records", "Telehealth Video", "Prescription Service", "Billing"]'::jsonb,
-          '{
-            "Patient Records": ["Vitals Sync", "Lab Results", "History Timeline"],
-            "Telehealth Video": ["WebRTC Call", "Screen Sharing", "Waiting Room"],
-            "Prescription Service": ["e-Rx Generation", "Pharmacy Dispatch"],
-            "Billing": ["Insurance Claim", "Copay Processing"]
-          }'::jsonb,
-          '[]'::jsonb
-        );
-      `);
-
-      // 5. Seed some sample defects for FinTech Global and HealthPlus to prove client isolation
-      await client.query(`
-        INSERT INTO defects (id, client_name, project_name, project_code, module, feature, severity, priority, title, status, created_by, assignee, description)
-        VALUES
-        (
-          'BUG-201',
-          'FinTech Global',
-          'Payment Gateway & Checkout',
-          'PRJ-002',
-          'Checkout UI',
-          '3D Secure Redirect',
-          'Critical',
-          'High',
-          '3D Secure OTP verification fails on Safari Mobile',
-          'Open',
-          'QA FinTech Lead',
-          'Payment Team',
-          'When submitting the 3D secure form on iOS Safari, the callback fails with 400 Bad Request.'
-        ),
-        (
-          'BUG-202',
-          'FinTech Global',
-          'Payment Gateway & Checkout',
-          'PRJ-002',
-          'Refund Engine',
-          'Partial Refunds',
-          'Major',
-          'High',
-          'Partial refund creates duplicate reversal ledger entry',
-          'In Progress',
-          'Alex Vance',
-          'Ledger Engineer',
-          'Refunding 50% of the transaction amount creates two entries of 50% in the database ledger.'
-        ),
-        (
-          'BUG-301',
-          'HealthPlus Systems',
-          'HealthPlus EHR Mobile',
-          'PRJ-003',
-          'Telehealth Video',
-          'WebRTC Call',
-          'Critical',
-          'High',
-          'Video feed disconnects after 15 minutes of consultation',
-          'Open',
-          'Health QA Lead',
-          'Video Team',
-          'ICE candidate renegotiation fails after turn server lease expiry.'
-        ),
-        (
-          'BUG-302',
-          'HealthPlus Systems',
-          'HealthPlus EHR Mobile',
-          'PRJ-003',
-          'Prescription Service',
-          'e-Rx Generation',
-          'Medium',
-          'Medium',
-          'Prescription PDF download missing doctor digital signature badge',
-          'Closed',
-          'Doctor App Tester',
-          'PDF Service Dev',
-          'Rendered PDF has an empty placeholder where the digital signature certificate was expected.'
-        )
-        ON CONFLICT (id) DO NOTHING;
-      `);
+    const sqlPath = path.join(__dirname, "migrate.sql");
+    if (!fs.existsSync(sqlPath)) {
+      throw new Error(`Migration SQL file not found at ${sqlPath}`);
     }
 
-    // Update existing PathAxiom defects
-    await client.query(`
-      UPDATE defects 
-      SET client_name = 'PathAxiom', project_name = 'Assessment Platform', project_code = 'PRJ-001'
-      WHERE client_name IS NULL OR client_name = '' OR project_code IS NULL;
-    `);
+    console.log("📄 Reading migration script: scripts/migrate.sql...");
+    const sql = fs.readFileSync(sqlPath, "utf-8");
 
-    // Ensure Client role users have client_name assigned
-    await client.query(`
-      UPDATE users 
-      SET client_name = 'PathAxiom', assigned_projects = '["PRJ-001"]'::jsonb
-      WHERE role = 'Client' AND (client_name IS NULL OR client_name = '');
-    `);
+    console.log("⚡ Executing schema migration and initial data seeding...");
+    await client.query("BEGIN");
+    await client.query(sql);
+    await client.query("COMMIT");
+    console.log("✅ Schema migration and seed executed successfully.\n");
 
-    console.log("Migration completed successfully!");
+    console.log("🔍 Verifying 8 required tables...");
+    console.log("-----------------------------------------------------------------");
+    console.log(String("Table Name").padEnd(20) + String("Status").padEnd(12) + String("Columns").padEnd(12) + "Rows");
+    console.log("-----------------------------------------------------------------");
+
+    let allPassed = true;
+    for (const table of REQUIRED_TABLES) {
+      const tableCheck = await client.query(
+        `SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`,
+        [table]
+      );
+      const exists = parseInt(tableCheck.rows[0].count, 10) > 0;
+
+      if (!exists) {
+        console.log(String(table).padEnd(20) + String("❌ MISSING").padEnd(12) + String("-").padEnd(12) + "-");
+        allPassed = false;
+        continue;
+      }
+
+      const colRes = await client.query(
+        `SELECT COUNT(*) as count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
+        [table]
+      );
+      const rowRes = await client.query(`SELECT COUNT(*) as count FROM ${table}`);
+
+      const cols = colRes.rows[0].count;
+      const rows = rowRes.rows[0].count;
+
+      console.log(
+        String(table).padEnd(20) +
+        String("✅ OK").padEnd(12) +
+        String(cols).padEnd(12) +
+        rows
+      );
+    }
+    console.log("-----------------------------------------------------------------");
+
+    if (!allPassed) {
+      throw new Error("One or more required tables failed to create.");
+    }
+
+    console.log("\n🎉 Database migration completed with all 8 tables verified!");
+    process.exit(0);
   } catch (err) {
-    console.error("Migration failed:", err);
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("\n❌ Migration failed:", err.message || err);
     process.exit(1);
   } finally {
     client.release();
