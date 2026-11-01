@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Users,
   UserPlus,
@@ -28,6 +28,7 @@ import {
   Building2,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
+import { Pagination } from "@/components/ui/Pagination";
 import { Role, User } from "@/lib/types";
 
 const COLORS = {
@@ -273,6 +274,20 @@ export function UserManagement() {
       return matchesSearch && matchesRole && matchesStatus && matchesOrg;
     });
   }, [viewTab, activeUsers, trashUsers, search, roleFilter, statusFilter, orgFilter]);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Auto-reset to page 1 whenever search, tab, or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, roleFilter, statusFilter, orgFilter, viewTab]);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   const activeCount = activeUsers.filter((u) => u.status === "active").length;
   const deactivatedCount = activeUsers.filter((u) => u.status === "deactivated").length;
@@ -576,7 +591,7 @@ export function UserManagement() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => {
+                paginatedUsers.map((u) => {
                   const roleColor = ROLE_COLORS[u.role] || COLORS.sub;
                   const isCurrent = currentUser?.id === u.id;
                   const canManage = canManageTargetUser(u);
@@ -791,6 +806,15 @@ export function UserManagement() {
             </tbody>
           </table>
         </div>
+
+        {/* Industry Standard Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredUsers.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Confirmation Modal: Move User to Recycle Bin */}

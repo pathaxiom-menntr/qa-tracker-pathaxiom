@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   FolderGit2,
   Plus,
@@ -25,6 +25,7 @@ import {
 import { useQAStore } from "@/lib/store";
 import { Project, User } from "@/lib/types";
 import { hasPermission } from "@/lib/permissions";
+import { Pagination } from "@/components/ui/Pagination";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -134,6 +135,20 @@ export function ProjectManagement() {
       return true;
     });
   }, [viewTab, activeProjects, trashProjects, isClient, clientOrgName, selectedClient, search]);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+
+  // Auto-reset to page 1 whenever search, tab, or client filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [viewTab, selectedClient, search]);
+
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProjects.slice(start, start + pageSize);
+  }, [filteredProjects, currentPage, pageSize]);
 
   // Dynamic KPI Metrics
   const totalProjects = activeProjects.length;
@@ -369,7 +384,7 @@ export function ProjectManagement() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProjects.map((p) => {
+          {paginatedProjects.map((p) => {
             // Count active defects for this project
             const projectDefects = defects.filter(
               (d) =>
@@ -611,6 +626,20 @@ export function ProjectManagement() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Industry Standard Pagination */}
+      {filteredProjects.length > 0 && (
+        <div className="rounded-xl overflow-hidden border border-slate-200 shadow-2xs">
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredProjects.length}
+            pageSize={pageSize}
+            pageSizeOptions={[6, 9, 18, 36]}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

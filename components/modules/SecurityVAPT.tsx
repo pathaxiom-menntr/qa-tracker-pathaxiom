@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { ShieldAlert, AlertTriangle, Plus, Pencil, Trash2, X, CheckCircle2, RotateCcw, Search, ChevronDown, Filter } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { VaptFinding, Role } from "@/lib/types";
+import { Pagination } from "@/components/ui/Pagination";
 
 const COLORS = {
   panel: "#FFFFFF",
@@ -93,6 +94,19 @@ export function SecurityVAPT() {
       return matchSearch && matchSev && matchStatus;
     });
   }, [currentList, search, sevFilter, statusFilter]);
+
+  // Industry-Standard Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, search, sevFilter, statusFilter]);
+
+  const paginatedList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredList.slice(start, start + pageSize);
+  }, [filteredList, currentPage, pageSize]);
 
   const openCount = activeFindings.filter((v) => v.status === "Open").length;
   const majorCount = activeFindings.filter((v) => v.severity === "Major" || v.severity === "Critical").length;
@@ -290,7 +304,8 @@ export function SecurityVAPT() {
               : "No findings match the selected filters."}
           </div>
         ) : (
-          <table className="w-full text-left text-xs">
+          <>
+            <table className="w-full text-left text-xs">
             <thead style={{ background: COLORS.panel2, borderBottom: `1px solid ${COLORS.border}` }}>
               <tr>
                 <th className="px-4 py-3 font-semibold w-16">#</th>
@@ -302,9 +317,9 @@ export function SecurityVAPT() {
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: COLORS.border }}>
-              {filteredList.map((f, i) => (
+              {paginatedList.map((f, i) => (
                 <tr key={f.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono" style={{ color: COLORS.sub }}>{i + 1}</td>
+                  <td className="px-4 py-3 font-mono" style={{ color: COLORS.sub }}>{(currentPage - 1) * pageSize + i + 1}</td>
                   <td className="px-4 py-3 font-medium" style={{ color: COLORS.ink }}>
                     <div className="flex items-center gap-2">
                       <span>{f.title}</span>
@@ -373,8 +388,18 @@ export function SecurityVAPT() {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+
+          {/* Industry Standard Pagination */}
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredList.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        </>
+      )}
+    </div>
 
       {/* ADD MODAL */}
       {showAdd && (

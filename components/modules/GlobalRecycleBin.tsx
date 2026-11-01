@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Trash2,
   RotateCcw,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
 import { Defect, User, Project, TestRun, Portal, VaptFinding, ReportEntry } from "@/lib/types";
+import { Pagination } from "@/components/ui/Pagination";
 
 const COLORS = {
   bg: "#F8FAFC",
@@ -95,6 +96,41 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
     deletedPortals.length +
     deletedVapt.length +
     deletedReports.length;
+
+  // Industry-Standard Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, search]);
+
+  const currentTabItems = useMemo(() => {
+    const q = search.toLowerCase();
+    switch (activeTab) {
+      case "defects":
+        return deletedDefects.filter((d) => d.title.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));
+      case "users":
+        return deletedUsers.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q));
+      case "projects":
+        return deletedProjects.filter((p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q));
+      case "testruns":
+        return deletedRuns.filter((r) => r.title.toLowerCase().includes(q) || r.run_id.toLowerCase().includes(q));
+      case "portals":
+        return deletedPortals.filter((p) => p.name.toLowerCase().includes(q));
+      case "vapt":
+        return deletedVapt.filter((v) => v.title.toLowerCase().includes(q));
+      case "reports":
+        return deletedReports.filter((r) => r.key.toLowerCase().includes(q) || (r.fileName && r.fileName.toLowerCase().includes(q)));
+      default:
+        return [];
+    }
+  }, [activeTab, search, deletedDefects, deletedUsers, deletedProjects, deletedRuns, deletedPortals, deletedVapt, deletedReports]);
+
+  const paginatedCurrentTabItems = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return currentTabItems.slice(start, start + pageSize);
+  }, [currentTabItems, currentPage, pageSize]);
 
   const handleConfirmPurge = async () => {
     if (!purgeTarget) return;
@@ -251,8 +287,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedDefects
-                    .filter((d) => d.title.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as Defect[])
                     .map((d) => (
                       <tr key={d.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3 font-mono font-bold text-indigo-600">{d.id}</td>
@@ -319,8 +354,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedUsers
-                    .filter((u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as User[])
                     .map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3">
@@ -382,8 +416,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedProjects
-                    .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.code.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as Project[])
                     .map((p) => (
                       <tr key={p.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3 font-mono font-bold text-indigo-600">{p.code}</td>
@@ -444,8 +477,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedRuns
-                    .filter((r) => r.title.toLowerCase().includes(search.toLowerCase()) || r.run_id.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as TestRun[])
                     .map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3 font-mono font-bold text-indigo-600">{r.run_id}</td>
@@ -507,8 +539,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedPortals
-                    .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as Portal[])
                     .map((p) => (
                       <tr key={p.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3 font-semibold text-slate-900">{p.name}</td>
@@ -564,8 +595,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedVapt
-                    .filter((v) => v.title.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as VaptFinding[])
                     .map((v) => (
                       <tr key={v.id} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3 font-medium text-slate-900">{v.title}</td>
@@ -624,8 +654,7 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {deletedReports
-                    .filter((r) => r.fileName.toLowerCase().includes(search.toLowerCase()) || r.key.toLowerCase().includes(search.toLowerCase()))
+                  {(paginatedCurrentTabItems as any[])
                     .map((r) => (
                       <tr key={r.key} className="hover:bg-slate-50/80">
                         <td className="px-4 py-3 font-semibold text-slate-900">{r.key}</td>
@@ -661,6 +690,17 @@ export function GlobalRecycleBin({ onNavigate }: { onNavigate?: (moduleKey: stri
               </table>
             )}
           </div>
+        )}
+
+        {/* Industry Standard Pagination */}
+        {currentTabItems.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={currentTabItems.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         )}
       </div>
 

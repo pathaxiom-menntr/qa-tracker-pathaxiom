@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Monitor, CheckCircle2, XCircle, Plus, X, Search, ChevronDown, RotateCcw } from "lucide-react";
 import { useQAStore } from "@/lib/store";
+import { Pagination } from "@/components/ui/Pagination";
 
 const COLORS = {
   panel: "#FFFFFF",
@@ -49,6 +50,19 @@ export function CompatibilityBrowsers() {
     const matchStatus = statusFilter === "All" || b.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  // Industry-Standard Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
+
+  const paginatedBrowsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredBrowsers.slice(start, start + pageSize);
+  }, [filteredBrowsers, currentPage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -184,7 +198,7 @@ export function CompatibilityBrowsers() {
                   </td>
                 </tr>
               ) : (
-                filteredBrowsers.map((b) => (
+                paginatedBrowsers.map((b) => (
                 <tr key={`${b.browser}-${b.version}`} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium" style={{ color: COLORS.ink }}>{b.browser}</td>
                   <td className="px-4 py-3 font-mono text-[11px]" style={{ color: COLORS.sub }}>{b.engine}</td>
@@ -210,6 +224,15 @@ export function CompatibilityBrowsers() {
             </tbody>
           </table>
         </div>
+
+        {/* Industry Standard Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredBrowsers.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Add Browser Modal */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import {
   Search,
   Upload,
@@ -29,6 +29,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
+import { Pagination } from "@/components/ui/Pagination";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -218,6 +219,20 @@ export function Reports() {
       (statusFilter === "Pending" && !hasDoc);
     return matchQ && matchStatus;
   });
+
+  // Industry-Standard Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(6);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, statusFilter, activeTab]);
+
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
   const activeUploadedCount = Object.values(reports).filter((r) => !r.is_deleted).length;
   const trashReports = Object.entries(reports)
     .filter(([_, r]) => !!r?.is_deleted)
@@ -377,7 +392,7 @@ export function Reports() {
 
           {/* Grid of Report Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((rt) => {
+        {paginatedReports.map((rt) => {
           const rec = reports[rt.key] && !reports[rt.key]?.is_deleted ? reports[rt.key] : null;
           const Icon = rt.icon;
           return (
@@ -505,6 +520,19 @@ export function Reports() {
           );
         })}
       </div>
+
+      {filtered.length > 0 && (
+        <div className="rounded-xl overflow-hidden border border-slate-200 mt-4 shadow-2xs">
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            pageSizeOptions={[6, 9, 12, 24]}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        </div>
+      )}
       </>
       ) : (
         /* Recycle Bin View for Reports */

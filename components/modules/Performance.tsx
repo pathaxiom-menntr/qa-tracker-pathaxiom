@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Clock,
   Activity,
@@ -41,6 +41,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useQAStore } from "@/lib/store";
 import { PerfEndpoint } from "@/lib/types";
+import { Pagination } from "@/components/ui/Pagination";
 
 const COLORS = {
   panel: "#FFFFFF",
@@ -272,6 +273,19 @@ export function Performance() {
     const matchStatus = reportStatusFilter === "All" || r.status === reportStatusFilter;
     return matchSearch && matchStatus;
   });
+
+  // Industry-Standard Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [reportSearch, reportStatusFilter]);
+
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredReportsList.slice(start, start + pageSize);
+  }, [filteredReportsList, currentPage, pageSize]);
 
   // Load persisted performance reports
   useEffect(() => {
@@ -571,7 +585,7 @@ export function Performance() {
                   </td>
                 </tr>
               ) : (
-                filteredReportsList.map((r) => (
+                paginatedReports.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-xs" style={{ color: COLORS.ink }}>
@@ -639,6 +653,15 @@ export function Performance() {
             </tbody>
           </table>
         </div>
+
+        {/* Industry Standard Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredReportsList.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Latency Benchmarks Bar Chart */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ListChecks,
   Plus,
@@ -35,6 +35,7 @@ import {
   FastForward,
 } from "lucide-react";
 import { useQAStore } from "@/lib/store";
+import { Pagination } from "@/components/ui/Pagination";
 import {
   Portal,
   TestRun,
@@ -392,6 +393,20 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
       return matchSearch && matchStatus && matchModule;
     });
   }, [activeRun, caseSearch, caseStatusFilter, caseModuleFilter]);
+
+  // Pagination states for Test Cases
+  const [casePage, setCasePage] = useState(1);
+  const [casePageSize, setCasePageSize] = useState(10);
+
+  // Auto-reset page to 1 whenever search, filter, or selected run changes
+  useEffect(() => {
+    setCasePage(1);
+  }, [activeRun?.id, caseSearch, caseStatusFilter, caseModuleFilter]);
+
+  const paginatedCases = useMemo(() => {
+    const start = (casePage - 1) * casePageSize;
+    return filteredCases.slice(start, start + casePageSize);
+  }, [filteredCases, casePage, casePageSize]);
 
   // 1-Click Execution Handler
   const handleExecute = (tcId: string, status: TestCaseStatus) => {
@@ -1116,7 +1131,7 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
                           No test cases match the applied filters.
                         </div>
                       ) : (
-                        filteredCases.map((tc) => {
+                        paginatedCases.map((tc) => {
                           const isExpanded = !!expandedCases[tc.id];
 
                           return (
@@ -1341,6 +1356,15 @@ export function TestCases({ onNavigate }: { onNavigate?: (moduleKey: string) => 
                         })
                       )}
                     </div>
+
+                    {/* Industry Standard Pagination */}
+                    <Pagination
+                      currentPage={casePage}
+                      totalItems={filteredCases.length}
+                      pageSize={casePageSize}
+                      onPageChange={setCasePage}
+                      onPageSizeChange={setCasePageSize}
+                    />
                   </div>
                 </>
               ) : (

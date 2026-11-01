@@ -50,6 +50,7 @@ import { Defect, Project, Role, DefectAttachment } from "@/lib/types";
 import { hasPermission } from "@/lib/permissions";
 import { BulkUploadModal } from "./BulkUploadModal";
 import { DefectAttachmentsSection, DefectAttachmentsViewerModal } from "./DefectAttachments";
+import { Pagination } from "@/components/ui/Pagination";
 
 const COLORS = {
   bg: "#F4F6F9",
@@ -379,6 +380,31 @@ export function Defects() {
     const list = Object.values(dateMap).sort((a, b) => a.timestamp - b.timestamp);
     return list.length > 0 ? list : [{ date: "Current", open: 0, closed: 0, total: 0, timestamp: 0 }];
   }, [filtered]);
+
+  // Industry-Standard Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Auto-reset page to 1 whenever any filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    activeTab,
+    selectedClient,
+    selectedProject,
+    modFilter,
+    sevFilter,
+    statusFilter,
+    dateFilter,
+    q,
+    customStartDate,
+    customEndDate,
+  ]);
+
+  const paginatedDefects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   // Modals
   const [showAdd, setShowAdd] = useState(false);
@@ -1430,7 +1456,7 @@ export function Defects() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((d) => (
+                paginatedDefects.map((d) => (
                   <tr key={d.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 px-4 font-mono font-semibold" style={{ color: COLORS.accent }}>
                       {d.id}
@@ -1585,6 +1611,15 @@ export function Defects() {
             </tbody>
           </table>
         </div>
+
+        {/* Industry Standard Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* ==================== CREATE DEFECT MODAL (Client -> Project -> Module -> Feature -> Bug) ==================== */}
